@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gold Font Pack</title>
+<style>
+  body { margin: 0; padding: 24px; background: #0b3d1a; color: #e8eef6; font-family: system-ui, sans-serif; }
+  h2 { font-weight: 500; font-size: 14px; letter-spacing: .1em; text-transform: uppercase; opacity: .7; margin: 28px 0 8px; }
+  input { font: inherit; padding: 6px 10px; width: min(420px, 100%); }
+  .out canvas { display: block; max-width: 100%; height: auto; margin: 6px 0; }
+</style>
+</head>
+<body>
+<input id="text" value=":jaguar: Movie Night! :star:" aria-label="Sample text">
+<h2>Aztec Gold</h2><div class="out" id="aztec"></div>
+<h2>Tower Gold</h2><div class="out" id="tower"></div>
+<script src="goldfont.js"></script>
+<script>
+  (async () => {
+    const fonts = { aztec: await GoldFont.load('aztec'), tower: await GoldFont.load('tower') };
+    const input = document.getElementById('text');
+    const render = () => {
+      for (const [slug, font] of Object.entries(fonts)) {
+        const out = document.getElementById(slug);
+        out.replaceChildren(
+          font.canvas('ABCDEFGHIJKLM', { size: 56 }),
+          font.canvas('NOPQRSTUVWXYZ', { size: 56 }),
+          font.canvas('0123456789', { size: 56 }),
+          font.canvas(Object.keys(font.meta.names).filter(n => font.meta.names[n] > '─')
+            .map(n => `:${n}:`).join(''), { size: 56 }),
+          font.canvas('!?,;:.\'-—@&$%()[]{}+−×÷=~#*', { size: 56 }),
+          font.canvas(input.value, { size: 80 }),
+          font.canvas(input.value, { size: 28 }),
+        );
+      }
+    };
+    input.addEventListener('input', render);
+    render();
+  })();
+</script>
+</body>
+</html>

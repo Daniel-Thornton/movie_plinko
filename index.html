@@ -1,0 +1,3117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aztec Tower</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet">
+<style>
+  /* Plain text (headings, labels and body) uses Mayan from fonts/. Any character it lacks
+     falls back to the next font in the stack automatically. */
+  @font-face { font-family: "Mayan"; src: url("fonts/Mayan.ttf") format("truetype"); font-display: swap; }
+  :root {
+    --bg: #12021f;
+    --stone: #1a2a30;
+    --stone-2: #24373e;
+    --line: #8a6a1f;
+    --text: #fff6e0;
+    --muted: #b9c9c3;
+    --gold: #ffcc33;
+    --gold-2: #ff9500;
+    --jade: #18e0a0;
+    --turq: #19d3e0;
+    --magenta: #ff2e88;
+    --danger: #ff3b3b;
+    --display: "Bungee", Impact, "Arial Black", system-ui, sans-serif;
+    --heading: "Mayan", Georgia, "Times New Roman", serif;
+    --body: "Mayan", Georgia, "Times New Roman", serif;
+    /* Stepped-pyramid fret, the classic Aztec border motif */
+    --fret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12'%3E%3Cpath d='M0 11h3V7h4V3h10v4h4v4h3' fill='none' stroke='%23ffcc33' stroke-width='2'/%3E%3C/svg%3E");
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    overflow: hidden;
+  }
+  /* Banner art, blurred and dimmed, as the room behind the cabinet */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -30px;
+    z-index: -1;
+    background: url("images/AztecTower_Banner_2000x1000.jpg") center / cover;
+    filter: blur(14px) brightness(.4) saturate(1.3);
+  }
+  button, input { font: inherit; color: inherit; }
+
+  .app {
+    display: flex;
+    height: 100vh;
+    padding: 14px 18px;
+  }
+
+  /* ---------- Stone tablets (side panels) ---------- */
+  .panel-col {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+    min-width: 0;
+  }
+  .lb-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .lb-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #5c4614 transparent; }
+  /* Carved stone slabs, nine-sliced from the UI sheet so they stretch to any size */
+  .card {
+    position: relative;
+    border: 22px solid transparent;
+    border-image: url("images/ui/stone_panel.png") 44 fill / 22px stretch;
+    padding: 4px 2px 2px;
+    filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .55));
+  }
+  .card h2 {
+    margin: 0 0 10px;
+    font-family: var(--heading);
+    font-weight: 400;
+    font-size: 17px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--gold);
+    text-shadow: 0 2px 0 #6b3a00;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .card h2 small { font-family: var(--body); font-size: 12px; color: #e8eef6; text-shadow: 0 1px 2px #000; }
+
+  .add-row { display: flex; gap: 8px; }
+  .add-row input {
+    flex: 1;
+    min-width: 0;
+    background: #0c1518;
+    border: 1px solid #3c5058;
+    border-radius: 10px;
+    padding: 9px 11px;
+    outline: none;
+  }
+  .add-row input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255, 204, 51, .2); }
+  .btn {
+    border: 11px solid transparent;
+    border-image: url("images/ui/stone_pill.png") 34 fill / 11px stretch;
+    background: none;
+    padding: 1px 8px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 0 #1c2230, 0 0 6px rgba(0, 0, 0, .6);
+    cursor: pointer;
+    transition: transform .08s, filter .15s, opacity .15s;
+  }
+  .btn:hover { filter: brightness(1.25) drop-shadow(0 0 6px rgba(255, 204, 51, .45)); }
+  .btn:active { transform: scale(.96); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn.waiting { filter: grayscale(1) brightness(.75); opacity: .75; }
+
+  .movie-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .movie-list li {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: rgba(5, 12, 14, .55);
+    border: 1px solid #34474e;
+    border-radius: 9px;
+    padding: 6px 6px 6px 10px;
+    font-size: 14px;
+  }
+  .dot { width: 12px; height: 12px; transform: rotate(45deg); flex: none; box-shadow: 0 0 10px currentColor; border-radius: 2px; }
+  .movie-list .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .movie-list .x {
+    border: 0; background: transparent; color: var(--muted); cursor: pointer;
+    width: 26px; height: 26px; border-radius: 6px; font-size: 16px; line-height: 1;
+  }
+  .movie-list .x:hover { background: #3a1020; color: var(--danger); }
+  .locked .movie-list .x, .locked .add-row, .locked .tools { opacity: .4; pointer-events: none; }
+  .tools { display: flex; gap: 8px; margin-top: 10px; }
+  .tools .btn { flex: 1; font-size: 13px; }
+
+  .slider-row { display: flex; align-items: center; gap: 12px; }
+  .slider-row input[type=range] { flex: 1; accent-color: var(--gold); }
+  .slider-row output { font-family: var(--display); color: var(--gold); min-width: 40px; text-align: right; }
+
+  .row2 { display: flex; gap: 8px; margin-top: 12px; }
+  .card > .row2:first-of-type { margin-top: 0; }
+  .row2 .btn { flex: 1; white-space: nowrap; padding: 2px 4px; font-size: 14px; }
+  .status { margin-top: 10px; font-size: 13px; color: #eef3f8; text-shadow: 0 1px 2px #000; text-align: center; min-height: 18px; font-variant-numeric: tabular-nums; }
+  .pad-badge { margin-top: 8px; font-size: 12px; text-align: center; color: var(--gold); }
+  .disclaimer { margin-top: 10px; font-size: 10.5px; line-height: 1.35; text-align: center; color: #cfd8e2; text-shadow: 0 1px 2px #000; font-style: italic; }
+
+  .board-list { position: relative; }
+  .lb-row {
+    position: absolute;
+    left: 0; right: 0;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform .45s cubic-bezier(.2, .8, .2, 1);
+  }
+  .lb-rank { width: 18px; color: var(--gold); font-family: var(--display); font-size: 12px; text-align: right; }
+  .lb-bar-wrap { flex: 1; position: relative; height: 26px; border-radius: 7px; background: rgba(5, 12, 14, .6); overflow: hidden; border: 1px solid #34474e; }
+  .lb-bar { position: absolute; inset: 0 auto 0 0; width: 0; opacity: .75; transition: width .35s ease; }
+  .lb-name { position: absolute; left: 9px; right: 66px; top: 0; bottom: 0; display: flex; align-items: center; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px rgba(0, 0, 0, .8); }
+  .lb-count { position: absolute; right: 9px; top: 0; bottom: 0; display: flex; align-items: center; font-family: var(--display); text-shadow: 0 1px 2px rgba(0, 0, 0, .8); }
+  .lb-row.lead .lb-bar-wrap { border-color: var(--gold); box-shadow: 0 0 14px rgba(255, 204, 51, .55); }
+
+  /* ---------- Cabinet ---------- */
+  .cabinet { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+  /* Leaderboard | board | treasure. The board column sizes to the canvas; the sides share what's left */
+  .mid-row { flex: 1; min-height: 0; display: grid; grid-template-columns: 260px minmax(0, 1fr) 240px; gap: 14px; }
+
+  .topbox {
+    flex: none;
+    position: relative;
+    border-radius: 22px 22px 10px 10px;
+    background:
+      radial-gradient(60% 120% at 50% 0%, rgba(255, 200, 90, .28), transparent 70%),
+      linear-gradient(180deg, #1c3d33, #0a1813);
+    border: 3px solid var(--gold);
+    box-shadow: 0 0 30px rgba(255, 204, 51, .3), inset 0 0 30px rgba(0, 0, 0, .5);
+    padding: 15px 16px 7px;
+    overflow: hidden;
+  }
+  .topbox::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 12px;
+    background: var(--fret) repeat-x center / 24px 12px;
+    opacity: .9;
+  }
+  /* Jungle-and-temple panorama across the whole bar, over the dark green so it reads at 75% */
+  .banner-art {
+    position: absolute;
+    inset: 0;
+    background: url("images/ui/banner_BG.jpg") center 60% / auto 380% no-repeat;   /* zoomed so the temple's tiers spread wider than the logo */
+    opacity: .75;
+    animation: templeglow 3.2s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes templeglow { 50% { filter: brightness(1.18) saturate(1.1); } }
+  /* Credits | idol · title · idol | jackpot, all on one row */
+  /* Two equal halves either side of the title, so the title stays centred over the pyramid
+     even though the jackpot meter is wider than the credits meter */
+  .top-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 18px; }
+  .top-side { display: flex; align-items: center; gap: 18px; min-width: 0; }
+  .top-side .banner-msg { flex: 1; }
+  /* Slot-machine boasts that cycle in the open banner space either side of the logo */
+  .banner-msg { height: 64px; display: flex; align-items: center; justify-content: center; min-width: 0; pointer-events: none; }
+  .banner-msg > * {
+    max-width: 100%; height: auto;
+    filter: drop-shadow(0 3px 2px rgba(0, 0, 0, .7)) drop-shadow(0 0 14px rgba(255, 204, 51, .45));
+    opacity: 0; transform: scale(.6) rotate(-3deg);
+    transition: opacity .35s, transform .45s cubic-bezier(.2, 1.6, .3, 1);
+  }
+  .banner-msg > .in { opacity: 1; transform: none; }
+  .banner-msg > .out { opacity: 0; transform: scale(1.25); transition: opacity .3s, transform .3s; }
+  .banner-msg span.fallback { font-family: var(--display); font-size: 26px; color: var(--gold); white-space: nowrap; }
+  /* A band of light that sweeps across the whole banner every few seconds */
+  .banner-shine {
+    position: absolute; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; border-radius: inherit;
+  }
+  .banner-shine::after {
+    content: ""; position: absolute; top: -40%; bottom: -40%; width: 22%;
+    left: -30%;
+    background: linear-gradient(100deg, transparent 0%, rgba(255, 245, 200, 0) 20%, rgba(255, 250, 220, .55) 48%, rgba(255, 255, 255, .8) 50%, rgba(255, 250, 220, .55) 52%, rgba(255, 245, 200, 0) 80%, transparent 100%);
+    transform: skewX(-22deg);
+    mix-blend-mode: screen;
+    animation: shine 5.5s ease-in-out infinite;
+  }
+  @keyframes shine { 0% { left: -30%; } 45%, 100% { left: 130%; } }
+  .title-wrap { display: flex; align-items: center; gap: 64px; }   /* idols stand at the pyramid's edges */
+  .hud {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 16px 1px;
+    border: 12px solid transparent;
+    border-image: url("images/ui/stone_tablet.png") 30 / 12px stretch;
+    background: #0a0010 padding-box;
+    box-shadow: inset 0 0 12px rgba(255, 46, 136, .35);
+    white-space: nowrap;
+  }
+  .hud span { font-family: var(--heading); font-size: 11px; letter-spacing: .12em; color: #ff9fd0; }
+  .hud b { font-family: var(--display); font-weight: 400; font-size: 24px; line-height: 1.1; color: var(--gold); text-shadow: 0 0 10px rgba(255, 204, 51, .8); font-variant-numeric: tabular-nums; }
+  .hud small { font-size: 10px; letter-spacing: .1em; color: #ffb3dc; }
+  .credits-hud { justify-self: start; }
+  .jackpot-hud { justify-self: end; }
+  .idol { height: 54px; width: auto; flex: none; filter: drop-shadow(0 0 10px rgba(255, 204, 51, .5)); animation: bob 2.4s ease-in-out infinite; }
+  .idol.right { animation-delay: -1.2s; }
+  @keyframes bob { 50% { transform: translateY(-4px); } }
+  /* The logo is taller than the bar, so it overhangs it slightly rather than growing the header */
+  .logo { margin: -14px 0 -10px; line-height: 0; }
+  .logo img { height: 84px; width: auto; display: block; animation: logoglow 2.6s ease-in-out infinite; }
+  @keyframes logoglow {
+    0%, 100% { filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .6)) drop-shadow(0 0 10px rgba(255, 204, 51, .35)); }
+    50% { filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .6)) drop-shadow(0 0 22px rgba(255, 220, 90, .75)); }
+  }
+
+  /* ---------- Attract screen ---------- */
+  .splash {
+    position: fixed;
+    inset: 0;
+    z-index: 8;
+    background: #000;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .6s;
+  }
+  .splash.show { opacity: 1; pointer-events: auto; }
+  .splash img { width: 100%; height: 100%; object-fit: cover; display: block; animation: drift 18s ease-in-out infinite alternate; }
+  @keyframes drift { from { transform: scale(1); } to { transform: scale(1.06); } }
+  .splash::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(0, 0, 0, .7)); }
+  .splash-cta {
+    position: absolute;
+    left: 50%;
+    bottom: 6%;
+    transform: translateX(-50%);
+    z-index: 1;
+    padding: 10px 28px;
+    border-radius: 999px;
+    background: rgba(10, 0, 20, .7);
+    border: 3px solid var(--gold);
+    font-family: var(--display);
+    font-size: clamp(16px, 2.2vw, 28px);
+    color: var(--gold);
+    text-shadow: 0 0 12px rgba(255, 204, 51, .8);
+    white-space: nowrap;
+    animation: ctapulse 1.2s ease-in-out infinite;
+  }
+  @keyframes ctapulse { 50% { transform: translateX(-50%) scale(1.06); box-shadow: 0 0 30px rgba(255, 204, 51, .7); } }
+
+  .board-wrap { position: relative; min-height: 0; min-width: 0; display: flex; align-items: center; justify-content: center; }
+  /* Gold screen bezel with chasing bulbs down both sides */
+  .frame {
+    position: relative;
+    padding: 10px 18px;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #ffe58a, #c98a12 30%, #7a4a00 70%, #e0a52a);
+    box-shadow: 0 0 0 2px #fff0a8, 0 0 40px rgba(255, 46, 136, .5), 0 0 90px rgba(255, 204, 51, .25), 0 20px 50px rgba(0, 0, 0, .6);
+  }
+  .frame::before, .frame::after {
+    content: "";
+    position: absolute;
+    top: 14px; bottom: 14px;
+    width: 18px;
+    background:
+      radial-gradient(circle, #fffbe0 0 2.6px, #ffcc33 3.2px, transparent 4.2px) 0 0 / 18px 22px repeat-y,
+      radial-gradient(circle, #ff7ac0 0 2.6px, #ff2e88 3.2px, transparent 4.2px) 0 11px / 18px 22px repeat-y;
+    animation: bulbs .7s steps(2) infinite;
+  }
+  .frame::before { left: 0; }
+  .frame::after { right: 0; animation-direction: reverse; }
+  @keyframes bulbs { to { background-position: 0 11px, 0 22px; } }
+  #board {
+    display: block;
+    border-radius: 10px;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .banner {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translate(-50%, -20px) scale(.9);
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, #ff2e88, #9a0b52);
+    border: 3px solid var(--gold);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-family: var(--heading);
+    font-size: 15px;
+    letter-spacing: .02em;
+    text-shadow: 0 2px 0 rgba(0, 0, 0, .35);
+    box-shadow: 0 0 30px rgba(255, 46, 136, .7);
+    transition: opacity .3s, transform .3s cubic-bezier(.2, 1.4, .3, 1);
+    white-space: nowrap;
+    max-width: calc(100% - 32px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .banner.show { opacity: 1; transform: translate(-50%, 0) scale(1); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 50px rgba(255, 204, 51, .9); } }
+
+  /* ---------- Button deck ---------- */
+  .deck {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 10px 16px 12px;
+    border-radius: 10px 10px 22px 22px;
+    background:
+      var(--fret) repeat-x 0 0 / 24px 12px,
+      linear-gradient(180deg, #1c3d33, #0a1813);
+    border: 3px solid var(--gold);
+    box-shadow: 0 0 24px rgba(255, 204, 51, .25);
+  }
+  .meter {
+    flex: none;
+    min-width: 120px;
+    text-align: center;
+    border: 12px solid transparent;
+    border-image: url("images/ui/stone_tablet.png") 30 / 12px stretch;
+    background: #050008 padding-box;
+    padding: 0 10px 1px;
+    box-shadow: inset 0 0 10px rgba(255, 46, 136, .3);
+  }
+  .meter span { display: block; font-family: var(--heading); font-size: 11px; letter-spacing: .12em; color: #ff9fd0; }
+  .meter b { display: block; font-family: var(--display); font-weight: 400; font-size: 22px; line-height: 1.15; color: var(--gold); text-shadow: 0 0 10px rgba(255, 204, 51, .8); font-variant-numeric: tabular-nums; }
+  .drop-btn {
+    flex: 0 1 340px;
+    min-width: 0;
+    border: 3px solid #fff0a8;
+    border-radius: 999px;
+    padding: 9px 16px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    color: #fff;
+    background: radial-gradient(120% 140% at 50% 0%, #8dffcf 0%, #18e0a0 35%, #05825a 100%);
+    box-shadow: 0 6px 0 #034a33, 0 0 0 4px #b98a1c, 0 10px 30px rgba(24, 224, 160, .55);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    transition: transform .08s, box-shadow .08s, filter .15s;
+    animation: btnglow 1.6s ease-in-out infinite;
+  }
+  @keyframes btnglow { 50% { filter: brightness(1.15); } }
+  .drop-btn b { font-family: var(--display); font-weight: 400; font-size: 26px; letter-spacing: .08em; text-shadow: 0 3px 0 #046a49, 0 0 12px rgba(255, 255, 255, .6); }
+  .drop-btn small { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #eafff6; text-shadow: 0 1px 0 #046a49; }
+  .drop-btn:active, .drop-btn.held { transform: translateY(4px); box-shadow: 0 2px 0 #034a33, 0 0 0 4px #b98a1c, 0 6px 20px rgba(24, 224, 160, .5); }
+  .drop-btn.off { filter: grayscale(.7) brightness(.6); cursor: default; transform: translateY(4px); animation: none; }
+
+  /* Party mode: a red boost button beside DROP, and mode-specific settings */
+  .boost-btn {
+    flex: none;
+    width: 92px; height: 64px;
+    border: 3px solid #ffd0a0;
+    border-radius: 999px;
+    font-family: var(--display);
+    font-size: 18px;
+    color: #fff;
+    text-shadow: 0 2px 0 #7a1a00;
+    background: radial-gradient(120% 140% at 50% 0%, #ffb27a 0%, #ff5a1a 40%, #a81e00 100%);
+    box-shadow: 0 6px 0 #5a1000, 0 0 0 4px #b98a1c, 0 10px 24px rgba(255, 90, 26, .5);
+    cursor: pointer;
+    touch-action: none;
+    transition: transform .08s, filter .15s;
+  }
+  .boost-btn:active { transform: translateY(4px); }
+  .boost-btn.off { filter: grayscale(.8) brightness(.55); cursor: default; }
+  .start-btn {
+    flex: none;
+    width: 120px; height: 64px;
+    border: 3px solid #fff3b0;
+    border-radius: 18px;
+    font-family: var(--display);
+    font-size: 17px; line-height: 1.05;
+    color: #4a1d00;
+    background: radial-gradient(120% 140% at 50% 0%, #fff3a0 0%, #ffcc33 45%, #d98a00 100%);
+    box-shadow: 0 6px 0 #7a4a00, 0 0 0 4px #b98a1c, 0 10px 28px rgba(255, 204, 51, .55);
+    cursor: pointer;
+    animation: btnglow 1.2s ease-in-out infinite;
+    transition: transform .08s, filter .15s;
+  }
+  .start-btn:active { transform: translateY(4px); }
+  .start-btn.off { filter: grayscale(.8) brightness(.55); cursor: default; animation: none; }
+  .start-btn.gone { display: none !important; }
+  body:not(.party) .party-only, body.party .movies-only { display: none !important; }
+  .mode-btn.on { filter: brightness(1.35) drop-shadow(0 0 8px rgba(255, 204, 51, .7)); color: var(--gold); }
+  .name-list { display: flex; flex-direction: column; gap: 6px; }
+  .name-row { display: flex; align-items: center; gap: 9px; }
+  .name-row input {
+    flex: 1; min-width: 0;
+    background: #0c1518; border: 1px solid #3c5058; border-radius: 9px;
+    padding: 7px 10px; outline: none; font-weight: 700;
+  }
+  .name-row input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255, 204, 51, .2); }
+  .mode-note { margin: 10px 2px 0; font-size: 12.5px; line-height: 1.45; color: #eef3f8; text-shadow: 0 1px 2px #000; }
+  .locked .mode-card .row2 { opacity: .4; pointer-events: none; }
+
+  /* ---------- Treasure pile ---------- */
+  .pile { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .pile-wrap { position: relative; flex: 1; min-height: 0; }
+  #pile { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .pile-total { text-align: center; font-family: var(--display); font-size: 22px; color: var(--gold); text-shadow: 0 0 10px rgba(255, 204, 51, .6); }
+  .pile-sub { text-align: center; font-size: 12px; color: #eef3f8; text-shadow: 0 1px 2px #000; min-height: 16px; }
+
+  /* ---------- Jackpot overlay ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 50% 45%, rgba(255, 190, 60, .3), rgba(4, 10, 8, .78) 70%);
+    backdrop-filter: blur(3px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .4s;
+    z-index: 5;
+    padding: 16px;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .win-card {
+    position: relative;
+    text-align: center;
+    padding: 34px 34px 26px;
+    border-radius: 26px;
+    background:
+      radial-gradient(80% 60% at 50% 0%, rgba(255, 204, 51, .35), transparent 70%),
+      linear-gradient(180deg, #1f4a3b, #0a1813);
+    border: 4px solid var(--gold);
+    box-shadow: 0 0 0 4px #7a1050, 0 0 80px rgba(255, 204, 51, .55), inset 0 0 40px rgba(255, 46, 136, .25);
+    transform: scale(.6) rotate(-4deg);
+    transition: transform .6s cubic-bezier(.2, 1.5, .3, 1);
+    max-width: 560px;
+    width: 100%;
+  }
+  .win-card::before {
+    content: "";
+    position: absolute;
+    left: 14px; right: 14px; top: 8px;
+    height: 12px;
+    background: var(--fret) repeat-x center / 24px 12px;
+  }
+  .overlay.show .win-card { transform: scale(1) rotate(0); }
+  /* Movie poster beside the result, when one was found */
+  .win-poster { display: none; }
+  .win-card.has-poster { max-width: min(1240px, 96vw); display: grid; grid-template-columns: auto minmax(380px, 1fr); gap: 34px; align-items: center; text-align: center; padding: 30px 36px; }
+  .win-card.has-poster .win-poster { display: block; }
+  .win-poster img {
+    display: block; height: min(74vh, 760px); width: auto; max-width: calc(min(1240px, 96vw) - 520px); object-fit: contain; border-radius: 12px;
+    border: 3px solid var(--gold);
+    box-shadow: 0 0 0 3px #7a1050, 0 0 30px rgba(255, 204, 51, .45), 0 12px 30px rgba(0, 0, 0, .6);
+    transform: rotate(-2deg);
+  }
+  .win-body { min-width: 0; }
+  /* Landscape posters (e.g. UK quads) go above the text so they don't squeeze it off the card */
+  .win-card.has-poster.wide-poster { grid-template-columns: 1fr; gap: 14px; max-width: min(1000px, 96vw); }
+  .win-card.wide-poster .win-poster { justify-self: center; }
+  .win-card.wide-poster .win-poster img { height: auto; max-width: none; transform: rotate(-1deg); }
+  @media (max-width: 860px) {
+    .win-card.has-poster { grid-template-columns: 1fr; }
+    .win-card.has-poster .win-poster { margin: 0 auto; }
+    .win-card.has-poster .win-poster img { height: 42vh; max-width: 80vw; }
+  }
+  .win-card .grand {
+    display: inline-block;
+    padding: 4px 18px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ffe066, #e07800);
+    color: #4a1d00;
+    font-family: var(--display);
+    font-size: 16px;
+    letter-spacing: .06em;
+    box-shadow: 0 0 20px rgba(255, 204, 51, .7);
+  }
+  .win-card .kicker { margin-top: 14px; letter-spacing: .3em; font-size: 12px; color: #ffb3dc; text-transform: uppercase; }
+  .win-card .title-win {
+    margin: 10px 0 6px;
+    font-family: var(--display);
+    font-size: clamp(28px, 6vw, 48px);
+    line-height: 1.1;
+    background: linear-gradient(180deg, #fffbe0, #ffcc33 50%, #ff9500);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 3px 0 #7a1050) drop-shadow(0 0 18px rgba(255, 204, 51, .6));
+    word-break: break-word;
+  }
+  /* The winner drawn in the Tower Gold bitmap font, one canvas per line */
+  .win-card .title-win.gold { margin: 6px 0 2px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .win-card .title-win canvas { display: block; max-width: 100%; height: auto; }
+  /* Party mode: the winning amount, big, under the name */
+  .win-amount { display: flex; justify-content: center; margin: 0 0 8px; filter: drop-shadow(0 3px 0 #3a1d00) drop-shadow(0 0 22px rgba(255, 204, 51, .55)); }
+  .win-amount:empty { display: none; }
+  .win-amount canvas { display: block; max-width: 100%; height: auto; }
+  .win-card .sub { color: var(--muted); margin-bottom: 20px; }
+  .win-card .row2 { justify-content: center; }
+  .win-card .pad-badge { margin: 14px 0 0; color: var(--muted); }
+
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 6; }
+
+  /* ---------- Settings modal ---------- */
+  .settings-card {
+    width: min(440px, 100%);
+    max-height: 100%;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+    border-radius: 22px;
+    background: radial-gradient(80% 50% at 50% 0%, rgba(255, 200, 90, .2), transparent 70%), linear-gradient(180deg, #1c3d33, #0a1813);
+    border: 3px solid var(--gold);
+    box-shadow: 0 0 0 3px #7a1050, 0 0 60px rgba(255, 46, 136, .45), 0 20px 50px rgba(0, 0, 0, .6);
+    transform: translateY(20px) scale(.96);
+    transition: transform .35s cubic-bezier(.2, 1.3, .3, 1);
+    scrollbar-width: thin;
+    scrollbar-color: #5c4614 transparent;
+  }
+  .overlay.show .settings-card { transform: none; }
+  .settings-card .head { display: flex; align-items: center; justify-content: space-between; }
+  .settings-card .head h2 { margin: 0; font-family: var(--heading); font-weight: 400; font-size: 22px; color: var(--gold); text-shadow: 0 2px 0 #6b3a00, 0 0 14px rgba(255, 204, 51, .5); }
+  .lock-note { display: none; margin-top: 8px; font-size: 12px; color: #ff9fd0; }
+  .locked .lock-note { display: block; }
+
+  @media (max-width: 860px) {
+    body { overflow: auto; }
+    .app { height: auto; padding: 12px; }
+    .mid-row { display: flex; flex-direction: column; }
+    .pile { height: 220px; }
+    .lb-card { flex: none; }
+    .idol { height: 44px; }
+    .top-row { grid-template-columns: 1fr 1fr; }
+    .banner-msg { display: none; }
+    .title-wrap { grid-column: 1 / -1; grid-row: 1; justify-self: center; }
+    .top-side { grid-row: 2; }
+    .top-side:last-child { justify-content: flex-end; }
+    .meter { min-width: 80px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <main class="cabinet">
+    <header class="topbox">
+      <div class="banner-art"></div>
+      <div class="top-row">
+        <div class="top-side">
+          <div class="hud credits-hud"><span>CREDITS</span><b id="creditTop">60</b><small id="creditCash">£3.00</small></div>
+          <div class="banner-msg" id="msgLeft"></div>
+        </div>
+        <div class="title-wrap">
+          <img class="idol" src="images/ui/idol.png" alt="">
+          <h1 class="logo"><img src="images/ui/logo.png" alt="Aztec Tower"></h1>
+          <img class="idol right" src="images/ui/idol.png" alt="">
+        </div>
+        <div class="top-side">
+          <div class="banner-msg" id="msgRight"></div>
+          <div class="hud jackpot-hud"><span>MEGA POPCORN JACKPOT</span><b id="jackpot">8,314,159</b><small>KERNELS</small></div>
+        </div>
+      </div>
+      <div class="banner-shine"></div>
+    </header>
+
+    <div class="mid-row" id="midRow">
+      <div class="panel-col">
+        <section class="card lb-card">
+          <h2>Leaderboard</h2>
+          <div class="lb-scroll"><div class="board-list" id="leaderboard"></div></div>
+        </section>
+        <section class="card">
+          <div class="row2">
+            <button class="btn" id="resetBtn">↺ Reset</button>
+            <button class="btn" id="muteBtn">🔊 Sound on</button>
+          </div>
+          <div class="row2">
+            <button class="btn" id="settingsBtn">⚙ Settings</button>
+          </div>
+          <div class="status" id="status"></div>
+          <div class="pad-badge" id="padBadge" hidden>🎮 Controller: Ⓐ / RT drop · Ⓑ close · Back sound</div>
+          <div class="disclaimer">No money changes hands. Only movies.<br>Please gamble responsibly with your evening.</div>
+        </section>
+      </div>
+
+      <div class="board-wrap" id="boardWrap">
+        <div class="frame"><canvas id="board"></canvas></div>
+        <div class="banner" id="banner"></div>
+      </div>
+
+      <aside class="pile card">
+        <h2>Treasure</h2>
+        <div class="pile-wrap" id="pileWrap"><canvas id="pile"></canvas></div>
+        <div class="pile-total" id="pileTotal"></div>
+        <div class="pile-sub" id="pileSub"></div>
+      </aside>
+    </div>
+
+    <div class="deck">
+      <div class="meter"><span id="creditLabel">CREDITS</span><b id="creditMeter">60</b></div>
+      <button class="drop-btn" id="dropBtn" type="button"><b>DROP</b><small></small></button>
+      <button class="boost-btn party-only" id="boostBtn" type="button" title="Boost (Shift)">BOOST</button>
+      <button class="start-btn party-only" id="startBtn" type="button">START<br>GAME</button>
+      <div class="meter"><span id="topLabel">TOP SLOT</span><b id="topMeter">0</b></div>
+    </div>
+  </main>
+</div>
+
+<div class="overlay" id="settings">
+  <div class="settings-card" id="side">
+    <div class="head">
+      <h2>⚙ Settings</h2>
+      <button class="btn" id="settingsDone">Done</button>
+    </div>
+    <section class="card mode-card">
+      <h2>Game mode</h2>
+      <div class="row2">
+        <button class="btn mode-btn" id="modeMovies" type="button">🎬 Movie pick</button>
+        <button class="btn mode-btn" id="modeParty" type="button">🎮 Party · 1–4</button>
+      </div>
+      <p class="mode-note party-only">Each controller is a player (press Ⓐ to join); the keyboard and mouse make one more. Ⓐ / Space fires a coin, the stick (or ← →) aims the shot, Ⓧ / Shift boosts the dropper. Click START GAME once everyone's in. Highest score wins.</p>
+    </section>
+    <section class="card movies-only">
+      <h2>Offerings <small id="movieCount"></small></h2>
+      <form class="add-row" id="addForm" autocomplete="off">
+        <input id="movieInput" maxlength="60" placeholder="Add a movie…">
+        <button class="btn" type="submit">Add</button>
+      </form>
+      <ul class="movie-list" id="movieList"></ul>
+      <div class="tools">
+        <button class="btn" id="shuffleBtn" type="button">⤨ Shuffle slots</button>
+        <button class="btn" id="defaultsBtn" type="button">↺ Defaults</button>
+        <button class="btn" id="clearBtn" type="button">Clear all</button>
+      </div>
+      <div class="lock-note">The offerings are sealed until this round ends.</div>
+    </section>
+    <section class="card movies-only">
+      <h2>Coins per round</h2>
+      <div class="slider-row">
+        <input type="range" id="puckSlider" min="10" max="150" step="5" value="60">
+        <output id="puckOut">60</output>
+      </div>
+    </section>
+    <section class="card party-only">
+      <h2>Players</h2>
+      <div class="name-list" id="nameList"></div>
+    </section>
+    <section class="card party-only">
+      <h2>Coins per player</h2>
+      <div class="slider-row">
+        <input type="range" id="partySlider" min="5" max="80" step="5" value="40">
+        <output id="partyOut">40</output>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="win-card" id="winCard">
+    <div class="win-poster" id="winPoster"><img id="winPosterImg" alt=""></div>
+    <div class="win-body">
+    <div class="grand">★ GRAND JACKPOT ★</div>
+    <div class="kicker" id="winKicker">The gods have chosen</div>
+    <div class="title-win" id="winTitle"></div>
+    <div class="win-amount" id="winAmount"></div>
+    <div class="sub" id="winSub"></div>
+    <div class="row2">
+      <button class="btn" id="againBtn">Ⓐ Play Again</button>
+      <button class="btn" id="moreBtn">Ⓑ Insert More Coins</button>
+    </div>
+    <div class="pad-badge" id="winPadHint" hidden>🎮 Ⓐ play again · Ⓑ insert more coins</div>
+    </div>
+  </div>
+</div>
+<canvas id="confetti"></canvas>
+<div class="splash show" id="splash">
+  <img src="images/AztecTower_Banner_2000x1000.jpg" alt="Aztec Tower">
+  <div class="splash-cta" id="splashCta">PRESS DROP OR SPACE TO PLAY</div>
+</div>
+
+<script src="images/fonts/goldfont.js"></script>
+<script src="images/fonts/goldfont-data.js"></script>
+<script>
+(() => {
+  // ---------- Constants ----------
+  // Logical board size. Height is fixed; width stretches between rounds to fill the screen
+  const H = 900, MIN_W = 900, MAX_W = 1800;
+  let W = 960;
+  const PUCK_R = 9, PEG_R = 4.5, DIV_R = 3;
+  const BUCKET_H = 170, BUCKET_TOP = H - BUCKET_H, FLOOR = H - 8;
+  const TOP_H = 180;                       // height of the strip the idol dropper rides in
+  const PEG_TOP = TOP_H + 37, PEG_DY = 42;
+  const SUN_Y = (TOP_H + BUCKET_TOP) / 2 - 70;   // centre of the light rays, and of the MEGA WIN banner
+  let SPAN = W - 2 * PUCK_R;
+  const GRAVITY = 1500, STEP = 1 / 240, MAX_SPEED = 1800;   // 1800/240 = 7.5 units a step, well under a peg+coin radius
+  const DROP_INTERVAL = 0.115;             // repeat rate while DROP is held; not a divisor of the sweep, so held drops drift across the rail
+  const DROPPER_PERIOD = 3.0;              // seconds for one left → right → left sweep
+  const MAX_MOVIES = 16, MIN_MOVIES = 2;
+  const PALETTE = ['#ff2e88', '#ffb800', '#19d3e0', '#7ee03b', '#ff6a1a', '#a05cff', '#ff3b3b', '#2ec5ff',
+                   '#ffe14d', '#00e68a', '#ff7ad9', '#5d7cff', '#c2ff3d', '#ff9f43', '#19f5e0', '#e05cff'];
+  const PENTA = [0, 2, 4, 7, 9];
+  const DISPLAY = '"Bungee", Impact, "Arial Black", sans-serif';
+  const HEADING = 'Mayan, Georgia, serif';
+  const BODY = 'Mayan, Georgia, serif';
+  const DEFAULT_MOVIES = ['Monster House', 'Scary Movie', 'Shaun of the Dead', 'What We Do in the Shadows', 'Wallace & Gromit: The Curse of the Were-Rabbit', 'The Conjuring', 'Nope', 'Us'];
+  // Party mode: up to 4 players, each with their own dropper, scoring the value of the pot each coin lands in
+  const MAX_PLAYERS = 4;
+  const PLAYER_COLORS = ['#ff4d4d', '#2ec5ff', '#7ee03b', '#ffcc33'];
+  const PARTY_POTS = [25, -5, 50, 10, 100, 10, 50, -5, 25];   // the -5 pots take money off you
+  const POT_COLORS = { '-5': '#ff3b3b', 10: '#7ee03b', 25: '#19d3e0', 50: '#ff2e88', 100: '#ffcc33' };
+  const OBSTACLE_ROWS = [3, 8];            // peg rows replaced by lanes of sliding stone slabs
+  const BOOST_TIME = 1, BOOST_COOLDOWN = 5, BOOST_MUL = 2.5;
+  // Ramming: a boosting dropper that reaches another knocks it flying the other way and scrambles its aim
+  const RAM_REACH = 0.8;                   // collision distance, as a share of a party idol's width
+  const RAM_KNOCK = 1900, RAM_STUN = 0.9;  // shove speed (decays fast) and seconds of wobble / aim scramble
+  const PARTY_IDOL = 0.72;                 // party droppers are drawn smaller so four fit on the rail
+  // Party coins are fired from the mouth in the aimed direction at 1.5x the dropper's sweep speed, and carry
+  // all of the dropper's own sideways speed, so a hard backwards aim still sends a coin the other way.
+  const SHOT_MUL = 1.5, PARTY_INHERIT = 1;
+  const MOVIE_INHERIT = 0.25;              // movie mode keeps a gentle drift: full inheritance made the edge slots win more often
+  const MAX_AIM = Math.PI / 2;             // shots use the bottom 180°: horizontal left, through straight down, to horizontal right
+  const STICK_DEADZONE = 0.3;
+
+  // ---------- Storage ----------
+  const store = {
+    get(k, fallback) { try { const v = localStorage.getItem('moviePlinko.' + k); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } },
+    set(k, v) { try { localStorage.setItem('moviePlinko.' + k, JSON.stringify(v)); } catch {} },
+  };
+
+  // ---------- State ----------
+  let movies = store.get('movies', DEFAULT_MOVIES);
+  if (!Array.isArray(movies) || movies.length < MIN_MOVIES) movies = DEFAULT_MOVIES.slice();
+  let puckTotal = store.get('pucks', 60);
+  let muted = store.get('muted', false);
+
+  let counts = movies.map(() => 0);
+  let bucketFx = [];
+  let pegs = [], pegRows = [], dividers = [];
+  let pucks = [], particles = [], rings = [], confetti = [], floaters = [], fountain = [];
+  let state = 'setup';                   // setup | running | tiebreak | done
+  let toDrop = 0, tied = [];
+  let winner = -1, winPulse = 0, megaT = 99, fountainT = 0;
+  let dropperT = 0, dropperX = W / 2, dropperV = 0, dropperKick = 0;
+  let holding = false, holdTimer = 0;
+  let padPrev = {}, padHolding = false, padConnected = false;
+  let soundsThisFrame = 0;
+  let rayAngle = 0, rayBoost = 1, clock = 0;
+  let jackpot = 8314159, jackpotShown = 0;
+  let mode = store.get('mode', 'movies') === 'party' ? 'party' : 'movies';
+  let partyCoins = store.get('partyCoins', 40);
+  let playerNames = store.get('playerNames', ['', '', '', '']);
+  if (!Array.isArray(playerNames)) playerNames = ['', '', '', ''];
+  const money = n => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US');   // party scores read as cash: $1,250, -$5
+  const playerName = slot => (playerNames[slot] || '').trim() || `Player ${slot + 1}`;
+  let players = [];                        // indexed by slot: { slot, src, color, coins, score, x, dir, v, kick, boost, cool, holding, holdTimer }
+  let obstacles = [];
+  let winName = '', winLine = '', winBucket = -1, fountainX = 0;
+  let countdownT = -1;                     // seconds since START GAME was pressed, or -1 when there's no countdown
+  const COUNT_STEP = 0.9;                  // seconds each of 3, 2, 1, GO stays up
+
+  // ---------- DOM ----------
+  const $ = id => document.getElementById(id);
+  const canvas = $('board'), ctx = canvas.getContext('2d');
+  const cCanvas = $('confetti'), cctx = cCanvas.getContext('2d');
+  let scale = 1, dpr = 1;
+
+  // ---------- Board geometry ----------
+  // Puck centres can only reach [PUCK_R, W - PUCK_R]. The peg lattice is mirror-symmetric
+  // about both ends of that span and walls bounce losslessly, so each wall acts like a
+  // mirror and uniformly dropped pucks spread evenly. Slots split the same span equally
+  // (edge slots are drawn a puck-radius wider), and every slot spans the same whole
+  // number of peg columns, so each sits over an identical patch of pegs: no slot is favoured.
+  const slotCount = () => mode === 'party' ? PARTY_POTS.length : movies.length;
+  const slotEdge = i => i <= 0 ? 0 : i >= slotCount() ? W : PUCK_R + i * SPAN / slotCount();
+  const slotOf = x => Math.max(0, Math.min(slotCount() - 1, Math.floor((x - PUCK_R) / SPAN * slotCount())));
+  const slotColor = i => mode === 'party' ? POT_COLORS[PARTY_POTS[i]] : PALETTE[i % PALETTE.length];
+
+  // A random strip of glyph tiles for a slab's top face, re-rolled every round
+  const GLYPHS = ['diamond', 'tri', 'dot', 'zig', 'step', 'bar'];
+  const GLYPH_COLORS = ['#ff2e88', '#19d3e0', '#ffcc33', '#7ee03b', '#ff6a1a', '#ffffff', '#a05cff'];
+  function slabPattern(slab) {
+    const n = Math.max(3, Math.floor((slab.half + slab.r) * 2 / 15));
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    return Array.from({ length: n }, () => ({ shape: pick(GLYPHS), color: pick(GLYPH_COLORS), flip: Math.random() < 0.5 }));
+  }
+
+  function buildBoard() {
+    pegs = []; pegRows = []; dividers = []; obstacles = [];
+    const n = slotCount();
+    let perSlot = Math.max(1, Math.round(SPAN / (n * 44)));
+    if (perSlot > 1 && SPAN / (n * perSlot) < 34) perSlot--;
+    const cols = n * perSlot, dx = SPAN / cols;
+    let row = 0;
+    for (let y = PEG_TOP; y <= BUCKET_TOP - 36; y += PEG_DY, row++) {
+      // Party mode swaps some peg rows for a sliding stone slab (an empty row keeps the indexing intact)
+      if (mode === 'party' && OBSTACLE_ROWS.includes(row)) {
+        const k = OBSTACLE_ROWS.indexOf(row), half = Math.max(60, W * 0.055);
+        const slab = { y, half, r: 12, x: W * (k ? 0.7 : 0.3), v: (k ? -1 : 1) * (270 + 100 * k), glow: 0, squash: 0 };
+        slab.pattern = slabPattern(slab);
+        obstacles.push(slab);
+        pegRows.push([]);
+        continue;
+      }
+      const odd = row % 2 === 1;
+      const rowPegs = [];
+      for (let i = 0; i <= cols; i++) {
+        if (!odd && i === cols) break;
+        const x = PUCK_R + (i + (odd ? 0 : 0.5)) * dx;
+        const peg = { x, y, row, glow: 0, lastSound: 0 };
+        pegs.push(peg); rowPegs.push(peg);
+      }
+      pegRows.push(rowPegs);
+    }
+    // Dividers include a post on each wall line so the edge slots mirror the inner ones
+    for (let i = 0; i <= n; i++) dividers.push({ x: PUCK_R + i * SPAN / n, y1: BUCKET_TOP, y2: FLOOR });
+    counts = Array(n).fill(0);
+    bucketFx = counts.map(() => ({ glow: 0, bump: 0, fill: 0 }));
+  }
+  const pegRowCount = () => pegRows.length;
+
+  // ---------- Audio ----------
+  let actx = null, master = null;
+  // Background music, streamed from an <audio> element rather than decoded whole (the file is 34MB),
+  // looped quietly under the effects. It can only start after a user gesture, so initAudio kicks it off.
+  const MUSIC_VOL = 0.10;
+  const music = typeof Audio === 'undefined' ? null : new Audio('audio/Pulse%20Ceremonial.wav');
+  if (music) { music.loop = true; music.volume = 0; music.preload = 'auto'; }
+  function startMusic() {
+    if (music && !muted && !document.hidden && music.paused) music.play().catch(() => {});
+  }
+  // Fades toward the target each frame: silent when muted, ducked under the MEGA WIN fanfare
+  function updateMusic(dt) {
+    if (!music) return;
+    const target = muted ? 0 : winner >= 0 && megaT < 3 ? MUSIC_VOL * 0.3 : crowdOn ? MUSIC_VOL * 0.6 : MUSIC_VOL;
+    music.volume = Math.max(0, Math.min(1, music.volume + (target - music.volume) * Math.min(1, dt * 3)));
+    if (muted && music.volume < 0.005 && !music.paused) music.pause();
+  }
+
+  function initAudio() {
+    startMusic();
+    if (actx) { if (actx.state === 'suspended') actx.resume(); return; }
+    try {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = actx.createDynamicsCompressor();
+      master = actx.createGain();
+      master.gain.value = 0.45;
+      master.connect(comp); comp.connect(actx.destination);
+      crowdGain = actx.createGain();
+      crowdGain.connect(master);
+      loadCoins();
+      loadCrowd();
+      loadReward();
+    } catch { actx = null; }
+  }
+  function tone(freq, vol, dur, type = 'triangle', when = 0) {
+    if (!actx || muted) return;
+    const t = actx.currentTime + when;
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0002), t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t + dur + 0.03);
+  }
+  const noteFreq = (base, step) => base * Math.pow(2, (PENTA[step % 5] + 12 * Math.floor(step / 5)) / 12);
+  function pegSound(row, impact) {
+    if (soundsThisFrame >= 4) return;
+    soundsThisFrame++;
+    const step = (pegRowCount() - 1 - row);          // higher pitch near the top: a falling melody
+    const vol = Math.min(0.16, 0.03 + impact / 5000);
+    tone(noteFreq(330, step), vol, 0.16, 'triangle');
+  }
+  // Coin clips for pucks landing in a slot. Decoded into Web Audio when fetch works (served
+  // over http); when opened from file:// fetch is blocked, so fall back to <audio> elements.
+  const COIN_URLS = Array.from({ length: 16 }, (_, i) => `audio/coins/coin_${String(i + 1).padStart(2, '0')}.wav`);
+  let coinBufs = null, coinEls = null, lastCoin = -1;
+  function loadCoins() {
+    if (coinBufs || coinEls || !actx) return;
+    coinBufs = [];
+    Promise.all(COIN_URLS.map(u => fetch(u).then(r => r.arrayBuffer()).then(a => actx.decodeAudioData(a))))
+      .then(bufs => bufs.forEach(buf => {
+        // Recorded loudness varies a lot between clips; even it out by peak
+        let peak = 0;
+        for (let c = 0; c < buf.numberOfChannels; c++)
+          for (const v of buf.getChannelData(c)) peak = Math.max(peak, Math.abs(v));
+        coinBufs.push({ buf, gain: Math.min(4, 0.6 / (peak || 1)) });
+      }))
+      .catch(() => { coinBufs = null; coinEls = COIN_URLS.map(u => { const a = new Audio(u); a.preload = 'auto'; return a; }); });
+  }
+  function pickCoin(n) {
+    let i = Math.floor(Math.random() * n);
+    if (n > 1 && i === lastCoin) i = (i + 1) % n;   // never the same clip twice in a row
+    return lastCoin = i;
+  }
+  // Plays one coin clip; returns false if no clips are loaded yet
+  function coinClip(when = 0, vol = 1) {
+    if (coinBufs && coinBufs.length) {
+      const { buf, gain } = coinBufs[pickCoin(coinBufs.length)];
+      const src = actx.createBufferSource(), g = actx.createGain();
+      src.buffer = buf;
+      src.playbackRate.value = 0.94 + Math.random() * 0.12;
+      g.gain.value = gain * vol;
+      src.connect(g); g.connect(master);
+      src.start(actx.currentTime + when);
+      return true;
+    }
+    if (coinEls) {
+      setTimeout(() => {
+        const a = coinEls[pickCoin(coinEls.length)].cloneNode();
+        a.volume = 0.8 * vol;
+        a.play().catch(() => {});
+      }, when * 1000);
+      return true;
+    }
+    return false;
+  }
+  function landSound(b) {
+    if (!actx || muted) return;
+    if (!coinClip()) {
+      const f = noteFreq(262, b % 10);   // clips not loaded yet: fall back to the old chime
+      tone(f, 0.22, 0.6, 'sine');
+      tone(f * 2, 0.08, 0.45, 'sine');
+    }
+  }
+  // Crowd: builds up as the last coins drop (start.wav, then loop.wav until there's a winner), then cheers.
+  // Web Audio gives a gapless loop; under file:// fetch is blocked, so fall back to <audio> elements.
+  const CROWD_URLS = { start: 'audio/cheers/start.wav', loop: 'audio/cheers/loop.wav', cheer: 'audio/cheers/cheer.wav' };
+  const CROWD_GAIN = 0.9;   // through the Web Audio master; the recordings are quiet (peaks around 0.2)
+  const CROWD_EL_VOL = CROWD_GAIN * 0.45;   // the <audio> fallback bypasses the master gain (0.45), so match it here
+  // An <audio> element's own looping leaves an audible gap, so the fallback plays two copies of the
+  // loop in turn, starting the next just before the current one ends and crossfading between them.
+  const CROWD_XFADE = 0.35;
+  let crowdBufs = null, crowdEls = null, crowdNodes = [], crowdGain = null, crowdOn = false;
+  let crowdCur = null, crowdNext = null, crowdLoopIdx = 0;
+  function loadCrowd() {
+    if (crowdBufs || crowdEls || !actx) return;
+    crowdBufs = {};
+    Promise.all(Object.entries(CROWD_URLS).map(([k, u]) =>
+      fetch(u).then(r => r.arrayBuffer()).then(a => actx.decodeAudioData(a)).then(b => { crowdBufs[k] = b; })))
+      .catch(() => {
+        crowdBufs = null;
+        const el = u => { const a = new Audio(u); a.preload = 'auto'; return a; };
+        crowdEls = { start: el(CROWD_URLS.start), cheer: el(CROWD_URLS.cheer), loops: [el(CROWD_URLS.loop), el(CROWD_URLS.loop)] };
+      });
+  }
+  // Runs every frame: when the playing clip is about to end, bring in the next copy of the loop
+  function tickCrowd() {
+    if (!crowdOn || !crowdEls || !crowdCur) return;
+    const cur = crowdCur, left = cur.duration - cur.currentTime;
+    if (!(left <= CROWD_XFADE)) return;   // also false while the duration is still unknown
+    if (!crowdNext) {
+      crowdNext = crowdEls.loops[crowdLoopIdx];
+      crowdLoopIdx ^= 1;
+      crowdNext.currentTime = 0;
+      crowdNext.volume = 0;
+      crowdNext.play().catch(() => {});
+    }
+    // Equal-power crossfade, so the overlap doesn't swell or dip
+    const k = Math.min(1, Math.max(0, 1 - left / CROWD_XFADE));
+    cur.volume = CROWD_EL_VOL * Math.cos(k * Math.PI / 2);
+    crowdNext.volume = CROWD_EL_VOL * Math.sin(k * Math.PI / 2);
+    if (k >= 1 || cur.ended) {
+      cur.pause();
+      crowdNext.volume = CROWD_EL_VOL;
+      crowdCur = crowdNext;
+      crowdNext = null;
+    }
+  }
+  function startCrowd() {
+    if (crowdOn || !actx || muted) return;
+    crowdOn = true;
+    if (crowdBufs && crowdBufs.start && crowdBufs.loop) {
+      const t = actx.currentTime + 0.05;
+      crowdGain.gain.cancelScheduledValues(t);
+      crowdGain.gain.setValueAtTime(CROWD_GAIN, t);
+      const s = actx.createBufferSource();
+      s.buffer = crowdBufs.start; s.connect(crowdGain); s.start(t);
+      const l = actx.createBufferSource();
+      l.buffer = crowdBufs.loop; l.loop = true; l.connect(crowdGain); l.start(t + crowdBufs.start.duration);
+      crowdNodes = [s, l];
+    } else if (crowdEls) {
+      // start.wav plays first; tickCrowd crossfades it into the loop
+      crowdCur = crowdEls.start;
+      crowdNext = null;
+      crowdCur.currentTime = 0;
+      crowdCur.volume = CROWD_EL_VOL;
+      crowdCur.play().catch(() => {});
+    }
+  }
+  function stopCrowd(fade = 0.4) {
+    if (!crowdOn) return;
+    crowdOn = false;
+    if (crowdNodes.length) {
+      const t = actx.currentTime;
+      crowdGain.gain.cancelScheduledValues(t);
+      crowdGain.gain.setValueAtTime(crowdGain.gain.value, t);
+      crowdGain.gain.linearRampToValueAtTime(0, t + fade);
+      for (const n of crowdNodes) { try { n.stop(t + fade + 0.02); } catch {} }
+      crowdNodes = [];
+    }
+    if (crowdEls) {
+      for (const a of [crowdEls.start, ...crowdEls.loops]) { a.pause(); a.volume = 1; }
+      crowdCur = crowdNext = null;
+    }
+  }
+  function cheer() {
+    if (!actx || muted) return;
+    if (crowdBufs && crowdBufs.cheer) {
+      const s = actx.createBufferSource(), g = actx.createGain();
+      g.gain.value = CROWD_GAIN;
+      s.buffer = crowdBufs.cheer; s.connect(g); g.connect(master); s.start();
+    } else if (crowdEls) {
+      crowdEls.cheer.currentTime = 0;
+      crowdEls.cheer.volume = CROWD_EL_VOL;
+      crowdEls.cheer.play().catch(() => {});
+    }
+  }
+
+  // One-shot sound clips: decoded into Web Audio when fetch works, an <audio> element under file://
+  function loadClip(url) {
+    const clip = { buf: null, el: null };
+    fetch(url).then(r => r.arrayBuffer()).then(a => actx.decodeAudioData(a)).then(b => { clip.buf = b; })
+      .catch(() => { clip.el = new Audio(url); clip.el.preload = 'auto'; });
+    return clip;
+  }
+  // Plays a clip; returns false if it hasn't loaded yet
+  function playClip(clip, vol, when = 0) {
+    if (!clip) return false;
+    if (clip.buf) {
+      const src = actx.createBufferSource(), g = actx.createGain();
+      src.buffer = clip.buf; g.gain.value = vol;
+      src.connect(g); g.connect(master); src.start(actx.currentTime + when);
+      return true;
+    }
+    if (clip.el) {
+      const a = clip.el.cloneNode();
+      a.volume = Math.min(1, vol * 0.45);   // the master gain doesn't reach <audio> elements, so match it here
+      setTimeout(() => a.play().catch(() => {}), when * 1000);
+      return true;
+    }
+    return false;
+  }
+  // The win: a reward jingle and a big jackpot coin pour (both peak near full scale, so set below 1)
+  let rewardClip = null, jackpotClip = null;
+  function loadReward() {
+    if (rewardClip || !actx) return;
+    rewardClip = loadClip('audio/656643__ienba__game-reward.wav');
+    jackpotClip = loadClip('audio/496772__robinhood76__08173-big-jackpot-coins.wav');
+  }
+  function fanfare() {
+    if (!actx || muted) return;
+    if (!playClip(rewardClip, 0.75)) {
+      // Not loaded (yet): the old synth chord
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, 0.2, 0.35, 'triangle', i * 0.11));
+      [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach(f => tone(f, 0.09, 1.6, 'sine', 0.48));
+    }
+    // Payout tray: the jackpot coin pour, or a cascade built from single coin clips until it's loaded
+    if (!playClip(jackpotClip, 0.7, 0.25)) for (let i = 0; i < 22; i++) coinClip(0.3 + i * 0.075 + Math.random() * 0.04, 0.75);
+  }
+
+  // ---------- Pucks ----------
+  function spawnPuck(x, vx, owner = -1, y = SPAWN_Y, vy = 0) {
+    x = Math.max(PUCK_R + 2, Math.min(W - PUCK_R - 2, x));
+    pucks.push({
+      x, y, vx: vx + (Math.random() - 0.5) * 20, vy, rot: (Math.random() - 0.5) * 0.6, owner,
+      counted: false, bucket: -1, fade: 0, dead: false, still: 0, trail: [],
+    });
+    tone(880 + Math.random() * 120, 0.04, 0.06, 'square');
+  }
+  const activePucks = () => pucks.reduce((n, p) => n + (p.dead ? 0 : 1), 0);
+
+  function hitCircle(p, cx, cy, cr, e) {
+    const dx = p.x - cx, dy = p.y - cy, rr = PUCK_R + cr;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= rr * rr || d2 === 0) return 0;
+    const d = Math.sqrt(d2), nx = dx / d, ny = dy / d;
+    p.x = cx + nx * rr; p.y = cy + ny * rr;
+    const vn = p.vx * nx + p.vy * ny;
+    if (vn >= 0) return 0;
+    p.vx -= (1 + e) * vn * nx;
+    p.vy -= (1 + e) * vn * ny;
+    const tx = -ny, ty = nx, vt = p.vx * tx + p.vy * ty;
+    p.vx -= vt * 0.04 * tx; p.vy -= vt * 0.04 * ty;
+    p.vx += (Math.random() - 0.5) * 24;              // a little chaos so nothing balances forever
+    return -vn;
+  }
+
+  function physicsStep(dt) {
+    // Sliding slabs bounce between the walls
+    for (const s of obstacles) {
+      s.x += s.v * dt;
+      if (s.x - s.half < PUCK_R) { s.x = PUCK_R + s.half; s.v = Math.abs(s.v); }
+      if (s.x + s.half > W - PUCK_R) { s.x = W - PUCK_R - s.half; s.v = -Math.abs(s.v); }
+    }
+    for (const p of pucks) {
+      if (p.dead) continue;
+      p.vy += GRAVITY * dt;
+      const sp = Math.hypot(p.vx, p.vy);
+      if (sp > MAX_SPEED) { p.vx *= MAX_SPEED / sp; p.vy *= MAX_SPEED / sp; }
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.rot += p.vx * dt / PUCK_R;                       // roll with sideways motion
+
+      if (p.x < PUCK_R) { p.x = PUCK_R; if (p.vx < 0) p.vx = -p.vx; }
+      if (p.x > W - PUCK_R) { p.x = W - PUCK_R; if (p.vx > 0) p.vx = -p.vx; }
+      if (p.y > FLOOR - PUCK_R) { p.y = FLOOR - PUCK_R; if (p.vy > 0) p.vy = -p.vy * 0.25; p.vx *= 0.92; }
+
+      if (p.y < BUCKET_TOP) {
+        const ri = Math.round((p.y - PEG_TOP) / PEG_DY);
+        for (let r = ri - 1; r <= ri + 1; r++) {
+          const row = pegRows[r];
+          if (!row) continue;
+          for (const peg of row) {
+            if (Math.abs(peg.x - p.x) > PUCK_R + PEG_R) continue;
+            const imp = hitCircle(p, peg.x, peg.y, PEG_R, 0.5);
+            if (imp > 0) onPegHit(peg, imp);
+          }
+        }
+        // A slab is a capsule: collide with its nearest point. The bounce uses the slab's motion, so its
+        // ends shove and fling coins, but there's no surface friction: a coin resting on top keeps its
+        // own sideways speed and the slab slides out from under it rather than carrying it forever.
+        for (const s of obstacles) {
+          if (Math.abs(p.y - s.y) > PUCK_R + s.r) continue;
+          const cx = Math.max(s.x - s.half, Math.min(s.x + s.half, p.x));
+          const dx = p.x - cx, dy = p.y - s.y, rr = PUCK_R + s.r, d2 = dx * dx + dy * dy;
+          if (d2 >= rr * rr || d2 === 0) continue;
+          const d = Math.sqrt(d2), nx = dx / d, ny = dy / d;
+          p.x = cx + nx * rr; p.y = s.y + ny * rr;
+          const vn = (p.vx - s.v) * nx + p.vy * ny;
+          if (vn >= 0) continue;
+          // Bouncy: the coin springs off faster than it arrived, in a random direction within about
+          // ±70° of the surface normal (so always away from the slab), plus the slab's own sideways speed
+          const speed = Math.min(900, Math.max(320, -vn * 1.25 + 120));
+          const ang = Math.atan2(ny, nx) + (Math.random() - 0.5) * 2.4;
+          p.vx = Math.cos(ang) * speed + s.v * 0.6;
+          p.vy = Math.sin(ang) * speed;
+          s.glow = 1;
+          s.squash = Math.min(1, s.squash + 0.6);
+          if (soundsThisFrame < 4) {
+            soundsThisFrame++;
+            const f = 260 + Math.random() * 120;   // a quick rising "boing"
+            tone(f, 0.09, 0.09, 'triangle'); tone(f * 1.5, 0.07, 0.12, 'triangle', 0.05);
+          }
+        }
+      }
+      if (p.y > BUCKET_TOP - PUCK_R - DIV_R) {
+        for (const d of dividers) {
+          if (Math.abs(d.x - p.x) > PUCK_R + DIV_R) continue;
+          const cy = Math.max(d.y1, Math.min(d.y2, p.y));
+          hitCircle(p, d.x, cy, DIV_R, 0.35);
+        }
+      }
+
+      // Score when the puck drops into a slot
+      if (!p.counted && p.y > BUCKET_TOP + PUCK_R + 4) {
+        const b = slotOf(p.x);
+        p.counted = true; p.bucket = b;
+        // In sudden death only the tied slots count; once there's a winner nothing does
+        if (state === 'done' || (state === 'tiebreak' && !tied.includes(b))) {
+          p.dud = true;
+          tone(140, 0.08, 0.15, 'sine');
+          continue;
+        }
+        counts[b]++;
+        bucketFx[b].bump = 1; bucketFx[b].glow = 1;
+        const pl = mode === 'party' ? players[p.owner] : null;
+        if (pl) {
+          pl.score += PARTY_POTS[b];
+          if (PARTY_POTS[b] < 0) { tone(330, 0.09, 0.22, 'sawtooth'); tone(220, 0.09, 0.35, 'sawtooth', 0.18); }   // wah-wah
+        }
+        if (floaters.length < 40) floaters.push({
+          x: (slotEdge(b) + slotEdge(b + 1)) / 2, y: BUCKET_TOP - 6, t: 0,
+          color: pl ? (PARTY_POTS[b] < 0 ? '#ff3b3b' : pl.color) : slotColor(b), text: pl ? (PARTY_POTS[b] < 0 ? '' : '+') + money(PARTY_POTS[b]) : '+1', big: pl && PARTY_POTS[b] >= 50,
+        });
+        landSound(b);
+        rumble(0.15, 0.4, 60, pl ? pl.src : null);
+        updateLeaderboard();
+      }
+    }
+
+    // Puck–puck collisions
+    const D = PUCK_R * 2, D2 = D * D;
+    for (let i = 0; i < pucks.length; i++) {
+      const a = pucks[i];
+      if (a.dead || a.fade > 0) continue;
+      for (let j = i + 1; j < pucks.length; j++) {
+        const b = pucks[j];
+        if (b.dead || b.fade > 0) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        if (dx > D || dx < -D || dy > D || dy < -D) continue;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= D2 || d2 === 0) continue;
+        const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, push = (D - d) / 2;
+        a.x -= nx * push; a.y -= ny * push;
+        b.x += nx * push; b.y += ny * push;
+        const vrel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+        if (vrel > 0) {
+          const jimp = vrel * (1 + 0.3) / 2;
+          a.vx -= jimp * nx; a.vy -= jimp * ny;
+          b.vx += jimp * nx; b.vy += jimp * ny;
+        }
+      }
+    }
+  }
+
+  function onPegHit(peg, impact) {
+    if (impact < 30) return;
+    peg.glow = Math.min(1, peg.glow + 0.4 + impact / 900);
+    if (impact > 120 && rings.length < 60) rings.push({ x: Math.max(4, Math.min(W - 4, peg.x)), y: peg.y, t: 0 });
+    const now = performance.now();
+    if (now - peg.lastSound > 70) { peg.lastSound = now; pegSound(peg.row, impact); }
+  }
+
+  function burst(x, y, color, count = 14, power = 260) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2, s = power * (0.3 + Math.random() * 0.7);
+      particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - power * 0.4, life: 0, max: 0.5 + Math.random() * 0.5, color, size: 1.5 + Math.random() * 2.2 });
+    }
+  }
+
+  // ---------- Game flow ----------
+  // ---------- Movie posters ----------
+  // Looked up on Wikipedia: search "<title> film" and keep results described as a film (not a festival,
+  // series or person). Prefer one whose title is exactly the movie's, ignoring "(2019 film)"-style suffixes,
+  // so "Us" finds Us rather than It Ends with Us; otherwise take the top film. Its main image is the poster.
+  // Found URLs are cached in localStorage, and posters are prefetched when a round starts.
+  const posterCache = store.get('posters3', {});
+  const normTitle = t => t.toLowerCase().replace(/\s*\([^)]*\)\s*$/, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const posterJobs = {};
+  function findPoster(title) {
+    const key = title.trim().toLowerCase();
+    if (key in posterCache) return Promise.resolve(posterCache[key]);
+    if (posterJobs[key]) return posterJobs[key];
+    const url = 'https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrlimit=10'
+      + '&prop=pageimages|description&piprop=thumbnail&pithumbsize=1000&pilicense=any'
+      + '&format=json&formatversion=2&origin=*&gsrsearch=' + encodeURIComponent(title + ' film');
+    return posterJobs[key] = fetch(url).then(r => r.json()).then(d => {
+      const pages = ((d.query && d.query.pages) || []).sort((a, b) => a.index - b.index);
+      const films = pages.filter(p => p.thumbnail && /\bfilm\b/i.test(p.description || '')
+        && !/festival|series|franchise|director|filmmaker|actor|actress|award|studio|company/i.test(p.description));
+      const hit = films.find(p => normTitle(p.title) === normTitle(title)) || films[0];
+      posterCache[key] = hit ? hit.thumbnail.source : null;
+      store.set('posters3', posterCache);
+      return posterCache[key];
+    }).catch(() => null).finally(() => { delete posterJobs[key]; });   // offline: no poster, try again later
+  }
+  function prefetchPosters() {
+    if (mode !== 'movies' || typeof fetch === 'undefined') return;
+    for (const m of movies) findPoster(m).then(u => { if (u && typeof Image !== 'undefined') new Image().src = u; });
+  }
+  function showPoster(title) {
+    const card = $('winCard'), img = $('winPosterImg');
+    card.classList.remove('has-poster', 'wide-poster');
+    img.removeAttribute('src');
+    if (typeof fetch === 'undefined') return;
+    findPoster(title).then(u => {
+      if (!u || state !== 'done' || winName !== title) return;
+      img.onload = () => {
+        const wide = img.naturalWidth > img.naturalHeight * 1.05;
+        card.classList.toggle('wide-poster', wide);
+        // As wide as fits, but no taller than half the screen (so the frame hugs the image)
+        img.style.width = wide ? `min(820px, 86vw, ${(50 * img.naturalWidth / img.naturalHeight).toFixed(1)}vh)` : '';
+        card.classList.add('has-poster');
+      };
+      img.alt = `${title} poster`;
+      img.src = u;
+    });
+  }
+
+  function beginRound() {
+    if (state !== 'setup') return;
+    if (mode === 'party' && !players.length) return;
+    prefetchPosters();
+    counts = Array(slotCount()).fill(0);
+    bucketFx = counts.map(() => ({ glow: 0, bump: 0, fill: 0 }));
+    toDrop = puckTotal;
+    for (const p of players) { p.coins = partyCoins; p.score = 0; }
+    for (const s of obstacles) s.pattern = slabPattern(s);
+    state = 'running';
+    winner = -1; winBucket = -1;
+    hideBanner();
+    $('side').classList.add('locked');
+    updateLeaderboard();
+    updateUI();
+  }
+
+  function resetRound() {
+    state = 'setup';
+    pucks = []; particles = []; rings = []; floaters = []; fountain = [];
+    counts = Array(slotCount()).fill(0);
+    bucketFx = counts.map(() => ({ glow: 0, bump: 0, fill: 0 }));
+    toDrop = 0; winner = -1; winBucket = -1; megaT = 99; fountainT = 0; countdownT = -1;
+    againLock = 0;
+    // Party players stay in the lobby for the next round; anyone new can still join
+    for (const p of players) { p.coins = 0; p.score = 0; p.holding = false; }
+    stopCrowd(0.2);
+    $('side').classList.remove('locked');
+    hideBanner();
+    $('overlay').classList.remove('show');
+    updateLeaderboard();
+    updateUI();
+    resize();   // apply any board width change held back during the round
+    if (mode === 'party') lobbyBanner();
+  }
+
+  // ---------- Party mode ----------
+  const partyDropperSpeed = () => 2 * SPAN / DROPPER_PERIOD;
+  const shotSpeed = () => partyDropperSpeed() * SHOT_MUL;
+  const partyCoinsLeft = () => players.reduce((n, p) => n + p.coins, 0);
+  const partyKey = () => padConnected ? 'Ⓐ' : 'Space';
+  function lobbyBanner() {
+    if (mode !== 'party' || state !== 'setup') return;
+    showBanner(players.length
+      ? `${players.length} player${players.length > 1 ? 's' : ''} in · more can join · press START GAME when everyone's ready`
+      : `PARTY MODE · each player presses ${partyKey()} to join`);
+  }
+  function joinParty(src) {
+    if (countdownT >= 0 || players.length >= MAX_PLAYERS || players.some(p => p.src === src)) return;
+    const slot = players.length;
+    players.push({
+      slot, src, color: PLAYER_COLORS[slot], coins: 0, score: 0,
+      x: PUCK_R + SPAN * (slot + 0.5) / MAX_PLAYERS, dir: slot % 2 ? -1 : 1, v: 0,
+      kick: 1, boost: 0, cool: 0, holding: false, holdTimer: 0, aim: 0, aimTarget: 0, knock: 0, stun: 0, hitCool: 0,
+    });
+    [392, 523.25, 659.25].forEach((f, i) => tone(f * (1 + slot * 0.12), 0.12, 0.25, 'triangle', i * 0.07));
+    rumble(0.4, 0.6, 200, src);
+    lobbyBanner();
+    updateLeaderboard();
+    updateUI();
+  }
+  // A player's drop button went down. In the lobby it joins them; after a round it returns everyone to the lobby.
+  // canJoin is false for mouse clicks: the keyboard player only joins by pressing Space
+  function partyDown(src, canJoin = true) {
+    initAudio();
+    if (splashUp) { hideSplash(); return; }
+    if (state === 'done') { if (againReady()) { confetti = []; resetRound(); } return; }
+    const p = players.find(q => q.src === src);
+    if (!p) { if (state === 'setup' && canJoin) joinParty(src); return; }
+    if (state === 'setup' && countdownT >= 0) { p.holding = true; p.holdTimer = DROP_INTERVAL; return; }   // fires on GO
+    if (state !== 'running') return;
+    p.holding = true;
+    p.holdTimer = DROP_INTERVAL;
+    if (src === 'kb') $('dropBtn').classList.add('held');
+    partyRelease(p);
+  }
+  function partyUp(src) {
+    const p = players.find(q => q.src === src);
+    if (p) p.holding = false;
+    if (src === 'kb') $('dropBtn').classList.remove('held');
+  }
+  function partyRelease(p) {
+    // Out of coins: the idol still dips at the press, but nothing comes out
+    if (state !== 'running' || p.coins <= 0) { p.kick = 1; return; }
+    // Fired from the mouth along the aim (0 = straight down), carrying the dropper's own sideways speed
+    const [mx, my] = shooterMouth(p.x);
+    const shot = shotSpeed();
+    spawnPuck(mx, Math.sin(p.aim) * shot + p.v * PARTY_INHERIT, p.slot, my, Math.cos(p.aim) * shot);
+    p.coins--;
+    p.kick = 1;
+    const total = players.length * partyCoins;
+    if (partyCoinsLeft() <= Math.max(2, Math.round(total * 0.15))) startCrowd();
+    rumble(0, 0.3, 35, p.src);
+    updateLeaderboard();
+    updateUI();
+  }
+  function partyBoost(src) {
+    const p = players.find(q => q.src === src);
+    if (!p || state !== 'running' || p.cool > 0) return;
+    p.boost = BOOST_TIME;
+    p.cool = BOOST_COOLDOWN;
+    // A rising whoosh
+    tone(220, 0.08, 0.25, 'sawtooth'); tone(440, 0.06, 0.3, 'sawtooth', 0.06); tone(880, 0.05, 0.3, 'triangle', 0.12);
+    rumble(0.5, 0.2, 250, src);
+  }
+  // Rounds only start from the on-screen START GAME button, once everyone has joined
+  // START GAME runs a 3-2-1-GO countdown; the round begins on GO
+  function partyStart() {
+    initAudio();
+    if (state === 'setup' && players.length && countdownT < 0) {
+      countdownT = 0;
+      hideBanner();
+      countBeep(3);
+      updateUI();
+    }
+  }
+  function countBeep(n) {
+    if (n > 0) { tone(523.25, 0.18, 0.25, 'square'); tone(1046.5, 0.06, 0.2, 'triangle'); }
+    else { [523.25, 659.25, 783.99, 1046.5].forEach(f => tone(f, 0.12, 0.6, 'triangle')); tone(1568, 0.06, 0.5, 'sine', 0.05); }
+    rumble(n > 0 ? 0.3 : 0.9, n > 0 ? 0.3 : 0.9, n > 0 ? 120 : 350);
+  }
+  function tickCountdown(dt) {
+    if (countdownT < 0) return;
+    const before = Math.floor(countdownT / COUNT_STEP);
+    countdownT += dt;
+    const now = Math.floor(countdownT / COUNT_STEP);
+    if (now !== before && now <= 3) {
+      countBeep(3 - now);
+      if (now === 3) beginRound();   // GO
+    }
+    if (countdownT >= COUNT_STEP * 4) countdownT = -1;
+  }
+  function updateParty(dt) {
+    tickCountdown(dt);
+    const speed = partyDropperSpeed();
+    for (const p of players) {
+      p.boost = Math.max(0, p.boost - dt);
+      p.cool = Math.max(0, p.cool - dt);
+      p.v = p.dir * speed * (p.boost > 0 ? BOOST_MUL : 1);
+      p.x += (p.v + p.knock) * dt;
+      if (p.x < PUCK_R) { p.x = 2 * PUCK_R - p.x; p.dir = 1; p.knock = Math.abs(p.knock); }
+      if (p.x > W - PUCK_R) { p.x = 2 * (W - PUCK_R) - p.x; p.dir = -1; p.knock = -Math.abs(p.knock); }
+      p.x = Math.max(PUCK_R, Math.min(W - PUCK_R, p.x));
+      p.kick *= Math.pow(0.001, dt);
+      p.knock *= Math.pow(0.004, dt);
+      p.stun = Math.max(0, p.stun - dt);
+      p.hitCool = Math.max(0, p.hitCool - dt);
+      // Aim follows the stick almost directly; a touch of smoothing just hides stick jitter.
+      // While stunned from a ram, the aim is thrown about instead.
+      if (p.src === 'kb') p.aimTarget = (keyAim.right - keyAim.left) * MAX_AIM * 0.85;
+      const target = p.stun > 0 ? p.aimTarget + Math.sin(clock * 23 + p.slot) * 1.1 * Math.min(1, p.stun * 2) : p.aimTarget;
+      p.aim = Math.max(-MAX_AIM, Math.min(MAX_AIM, p.aim + (target - p.aim) * Math.min(1, dt * 25)));
+      if (p.holding) {
+        p.holdTimer -= dt;
+        if (p.holdTimer <= 0) { p.holdTimer += DROP_INTERVAL; partyRelease(p); }
+      }
+    }
+    ramDroppers();
+    const kb = players.find(p => p.src === 'kb');
+    $('boostBtn').classList.toggle('off', !kb || state !== 'running' || kb.cool > 0);
+    if (state === 'running' && partyCoinsLeft() === 0 && activePucks() === 0) declarePartyWinner();
+  }
+  // A boosting dropper that reaches another rams it: the victim is shoved away, sent the other way and
+  // left wobbling with its aim scrambled. Two boosters meeting both get knocked back.
+  function ramDroppers() {
+    const reach = IDOL_H * PARTY_IDOL * (idolImg && idolImg.naturalWidth ? idolImg.naturalWidth / idolImg.naturalHeight : 1) * RAM_REACH;
+    for (const a of players) {
+      if (a.boost <= 0) continue;
+      for (const b of players) {
+        if (b === a || b.hitCool > 0 || Math.abs(b.x - a.x) > reach) continue;
+        // Only rams from behind or head-on: the booster has to be moving towards the other dropper
+        if (Math.sign(b.x - a.x || 1) !== Math.sign(a.v)) continue;
+        const away = Math.sign(b.x - a.x) || Math.sign(a.v);
+        b.knock = away * RAM_KNOCK;
+        b.dir = away;
+        b.stun = RAM_STUN;
+        b.hitCool = 0.5;
+        b.kick = 1;
+        if (b.boost > 0) {   // head-on boosters bounce off each other
+          a.knock = -away * RAM_KNOCK * 0.7; a.dir = -away; a.stun = RAM_STUN * 0.6; a.hitCool = 0.5; a.boost = 0;
+        }
+        burst((a.x + b.x) / 2, IDOL_TOP + IDOL_H * PARTY_IDOL * 0.5, b.color, 26, 380);
+        rings.push({ x: (a.x + b.x) / 2, y: IDOL_TOP + IDOL_H * PARTY_IDOL * 0.5, t: 0 });
+        tone(95, 0.22, 0.25, 'square'); tone(60, 0.25, 0.35, 'sine'); tone(700, 0.06, 0.12, 'triangle', 0.03);
+        rumble(1, 0.8, 350, b.src);
+        rumble(0.5, 0.3, 150, a.src);
+      }
+    }
+  }
+  function declarePartyWinner() {
+    const best = Math.max(...players.map(p => p.score));
+    const champs = players.filter(p => p.score === best);
+    winner = champs[0].slot;
+    winBucket = -1;
+    winName = champs.map(p => playerName(p.slot)).join(' & ');
+    winLine = `${winName} – ${money(best)}`;   // en dash: the Tower font has it, unlike "·"
+    fountainX = champs[0].x;
+    $('winKicker').textContent = champs.length === 1 ? 'Party champion' : 'Shared victory';
+    setWinTitle(winName);
+    setWinAmount(money(best));
+    $('winCard').classList.remove('has-poster');
+    // Everyone else's takings underneath, smaller
+    const rest = players.filter(p => p.score !== best).sort((a, b) => b.score - a.score);
+    $('winSub').textContent = rest.length ? rest.map(p => `${playerName(p.slot)}: ${money(p.score)}`).join(' · ')
+      : champs.length > 1 ? 'Shared victory' : '';
+    celebrate(champs[0].color);
+  }
+
+  // ---------- Dropper ----------
+  // Sweeps at constant speed so every position along the rail is equally likely
+  function moveDropper(dt) {
+    dropperT = (dropperT + dt) % DROPPER_PERIOD;
+    const u = dropperT / DROPPER_PERIOD, speed = 2 * SPAN / DROPPER_PERIOD;
+    dropperX = PUCK_R + SPAN * (u < 0.5 ? u * 2 : 2 - u * 2);
+    dropperV = u < 0.5 ? speed : -speed;
+    dropperKick *= Math.pow(0.001, dt);
+  }
+  const canDrop = () => (state === 'running' && toDrop > 0) || state === 'tiebreak';
+  function releasePuck() {
+    // Out of coins: the idol still dips at the press, but nothing comes out (its eyes stay grey)
+    if (!canDrop()) { dropperKick = 1; return; }
+    spawnPuck(dropperX, dropperV * MOVIE_INHERIT);
+    if (state === 'running') toDrop--;
+    // Nearly all the coins are in: the crowd starts building
+    if (state === 'running' && toDrop <= Math.max(2, Math.round(puckTotal * 0.15))) startCrowd();
+    dropperKick = 1;
+    rumble(0, 0.3, 35);
+    updateUI();
+  }
+  // A fresh press starts a round if needed; holding repeats at DROP_INTERVAL
+  function startHold() {
+    initAudio();
+    if (splashUp) { hideSplash(); return; }   // the first press only dismisses the attract screen
+    if (holding) return;
+    if (state === 'done') { if (!againReady()) return; confetti = []; resetRound(); }
+    if (state === 'setup') beginRound();
+    holding = true;
+    holdTimer = DROP_INTERVAL;
+    $('dropBtn').classList.add('held');
+    releasePuck();
+  }
+  function endHold() {
+    holding = false;
+    $('dropBtn').classList.remove('held');
+  }
+
+  // ---------- Attract screen ----------
+  let splashUp = true;
+  function hideSplash() {
+    if (!splashUp) return;
+    splashUp = false;
+    $('splash').classList.remove('show');
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(f, 0.12, 0.3, 'triangle', i * 0.08));
+  }
+
+  // ---------- Controller ----------
+  const PAD_DROP = [0, 5, 7], PAD_CLOSE = 1, PAD_MUTE = 8;   // A, RB, RT · B · Back/Select
+  const PAD_BOOST = [2, 4, 6];                               // X, LB, LT (party mode)
+  const getPads = () => navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
+  function pollPads() {
+    const pads = getPads();
+    if ((pads.length > 0) !== padConnected) {
+      padConnected = pads.length > 0;
+      $('padBadge').hidden = $('winPadHint').hidden = !padConnected;
+      $('splashCta').textContent = padConnected ? 'PRESS Ⓐ, DROP OR SPACE TO PLAY' : 'PRESS DROP OR SPACE TO PLAY';
+      updateUI();
+    }
+    let drop = false;
+    for (const gp of pads) {
+      const down = i => !!gp.buttons[i] && (gp.buttons[i].pressed || gp.buttons[i].value > 0.5);
+      const prev = padPrev[gp.index] || [];
+      const pressed = i => down(i) && !prev[i];
+      const wasDown = PAD_DROP.some(i => prev[i]), isDown = PAD_DROP.some(down);
+      if (mode === 'party') {
+        // Every controller is its own player
+        const src = 'pad' + gp.index;
+        if (isDown && !wasDown) partyDown(src);
+        if (!isDown && wasDown) partyUp(src);
+        if (PAD_BOOST.some(pressed)) partyBoost(src);
+        // Aim: whichever stick is pushed further sets the shooter's angle; centred = straight down
+        const pl = players.find(q => q.src === src);
+        if (pl) {
+          const ax = gp.axes || [], sticks = [[ax[0] || 0, ax[1] || 0], [ax[2] || 0, ax[3] || 0]];
+          const [sx, sy] = sticks.reduce((a, b) => Math.hypot(...b) > Math.hypot(...a) ? b : a);
+          // The stick's own angle (0 = pointing down). Pushed into the top half it holds at horizontal
+          // on that side, so sweeping the stick never makes the shot jump back to the middle.
+          if (Math.hypot(sx, sy) >= STICK_DEADZONE) {
+            const a = Math.atan2(sx, sy);
+            if (Math.abs(a) <= MAX_AIM) pl.aimTarget = a;
+            else if (sx !== 0) pl.aimTarget = Math.sign(sx) * MAX_AIM;
+          } else pl.aimTarget = 0;
+        }
+      } else if (isDown) drop = true;
+      if (pressed(PAD_CLOSE)) {
+        if (settingsOpen()) closeSettings();
+        else if (state === 'done' && $('overlay').classList.contains('show')) insertMoreCoins();
+      }
+      if (pressed(PAD_MUTE)) $('muteBtn').click();
+      padPrev[gp.index] = gp.buttons.map((_, i) => down(i));
+    }
+    if (mode === 'party') return;
+    if (drop && !padHolding) { padHolding = true; startHold(); }
+    else if (!drop && padHolding) { padHolding = false; endHold(); }
+  }
+  // Rumbles every controller, or just one player's when given their input source ('pad0'…)
+  function rumble(strong, weak, ms, src = null) {
+    if (!padConnected) return;
+    if (src && !src.startsWith('pad')) return;
+    for (const gp of getPads()) {
+      if (src && 'pad' + gp.index !== src) continue;
+      const fx = gp.vibrationActuator;
+      if (fx && fx.playEffect) fx.playEffect('dual-rumble', { duration: ms, strongMagnitude: strong, weakMagnitude: weak }).catch(() => {});
+    }
+  }
+
+  function leaders() {
+    const max = Math.max(...counts);
+    return counts.map((c, i) => c === max ? i : -1).filter(i => i >= 0);
+  }
+
+  // The win card's title in Tower Gold, as large as the card allows: up to 120px, shrinking to fit,
+  // and split over two lines if one line would get too small. Plain text until the font has loaded.
+  function setWinTitle(text) {
+    const el = $('winTitle'), font = goldFonts.tower, maxW = 470;
+    el.textContent = text;
+    el.classList.remove('gold');
+    if (!goldReady(font)) return;
+    const fit = t => Math.min(120, 120 * maxW / (font.measure(t, { size: 120 }) + 24));
+    let lines = [text];
+    const words = text.split(/\s+/);
+    if (fit(text) < 64 && words.length > 1) {
+      // Break where the two halves come out closest in width
+      let best = null;
+      for (let i = 1; i < words.length; i++) {
+        const a = words.slice(0, i).join(' '), b = words.slice(i).join(' ');
+        const w = Math.max(font.measure(a), font.measure(b));
+        if (!best || w < best.w) best = { w, lines: [a, b] };
+      }
+      lines = best.lines;
+    }
+    const size = Math.min(...lines.map(fit));
+    el.textContent = '';
+    el.classList.add('gold');
+    el.setAttribute('aria-label', text);
+    for (const line of lines) el.append(font.canvas(line, { size }));
+  }
+
+  // The winning amount on the party win card, in Tower Gold (plain text until the font has loaded)
+  function setWinAmount(text) {
+    const el = $('winAmount'), font = goldFonts.tower;
+    el.textContent = '';
+    if (!text) return;
+    if (!goldReady(font)) { el.textContent = text; return; }
+    const size = Math.min(84, 84 * 440 / (font.measure(text, { size: 84 }) + 24));
+    el.append(font.canvas(text, { size }));
+    el.setAttribute('aria-label', text);
+  }
+
+  function declareWinner(b) {
+    winner = b; winBucket = b;
+    winName = movies[b]; winLine = movies[b];
+    fountainX = (slotEdge(b) + slotEdge(b + 1)) / 2;
+    const total = counts.reduce((a, c) => a + c, 0);
+    $('winKicker').textContent = 'The gods have chosen';
+    setWinTitle(movies[b]);
+    $('winSub').textContent = `${counts[b]} of ${total} coins (${Math.round(counts[b] / total * 100)}%)`;
+    setWinAmount('');
+    showPoster(movies[b]);
+    celebrate(PALETTE[b % PALETTE.length]);
+  }
+
+  // Play again counts down 3-2-1 (greyed out) before the next round can be started
+  const AGAIN_WAIT = 3;
+  let againLock = 0;
+  const againReady = () => againLock <= 0;
+  function refreshAgain() {
+    const locked = !againReady(), n = locked && againLock !== Infinity ? ` (${Math.ceil(againLock)})` : '';
+    for (const [id, label] of [['againBtn', 'Ⓐ Play Again'], ['moreBtn', 'Ⓑ Insert More Coins']]) {
+      const btn = $(id);
+      btn.disabled = locked;
+      btn.classList.toggle('waiting', locked);
+      btn.textContent = label + n;
+    }
+  }
+
+  // Insert More Coins: carry on the same round. Counts and scores are kept, a fresh batch of coins is
+  // added (a round's worth, or each party player's allowance), and the winner is decided again when they land.
+  function insertMoreCoins() {
+    if (state !== 'done' || !againReady()) return;
+    initAudio();
+    confetti = []; fountain = []; floaters = [];
+    winner = -1; winBucket = -1; megaT = 99; fountainT = 0; againLock = 0;
+    if (mode === 'party') for (const p of players) { p.coins += partyCoins; p.holding = false; }
+    else toDrop += puckTotal;
+    state = 'running';
+    $('overlay').classList.remove('show');
+    $('side').classList.add('locked');
+    // The sound of coins going in
+    for (let i = 0; i < 6; i++) coinClip(i * 0.09, 0.6);
+    updateLeaderboard();
+    updateUI();
+  }
+
+  function celebrate(color) {
+    state = 'done';
+    winPulse = 0; megaT = 0; fountainT = 1.8; rayBoost = 3.5;
+    hideBanner();
+    fanfare();
+    rumble(1, 1, 700);
+    stopCrowd(0.5);
+    cheer();
+    burst(fountainX, BUCKET_TOP + 40, color, 60, 520);
+    launchConfetti();
+    // Let the MEGA WIN moment play out on the board before the card covers it
+    // and locks Play again (and every other way of starting the next round) until 3s after the card is up
+    againLock = Infinity;
+    refreshAgain();
+    setTimeout(() => {
+      if (state !== 'done') return;
+      $('overlay').classList.add('show');
+      againLock = AGAIN_WAIT;
+      refreshAgain();
+    }, 2600);
+    $('side').classList.remove('locked');
+    updateUI();
+  }
+
+  function update(dt) {
+    soundsThisFrame = 0;
+    clock += dt;
+
+    const active = activePucks();
+    if (mode === 'party') updateParty(dt);
+    else {
+      moveDropper(dt);
+      if (holding) {
+        holdTimer -= dt;
+        if (holdTimer <= 0) { holdTimer += DROP_INTERVAL; releasePuck(); }
+      }
+    }
+
+    if (mode === 'party') { /* the round ends in updateParty */ }
+    else if (state === 'running' && toDrop === 0 && active === 0) {
+      const l = leaders();
+      if (l.length === 1) declareWinner(l[0]);
+      else {
+        state = 'tiebreak'; tied = l;
+        showBanner(`TIE! Keep dropping: first coin into ${l.map(i => movies[i]).join(' or ')} wins`);
+      }
+      updateUI();
+    } else if (state === 'tiebreak' && leaders().length === 1) {
+      declareWinner(leaders()[0]);
+    }
+    for (const s of obstacles) { s.glow *= Math.pow(0.01, dt); s.squash *= Math.pow(0.0005, dt); }
+
+    // Absorb pucks that have landed into the slot's fill
+    for (const p of pucks) {
+      if (p.dead) continue;
+      if (!p.counted) {
+        const sp = Math.hypot(p.vx, p.vy);
+        p.still = sp < 20 ? p.still + dt : 0;
+        if (p.still > 0.8) { p.vx = (Math.random() < 0.5 ? -1 : 1) * 140; p.vy = -60; p.still = 0; }
+        // Safety net: a coin making no downward progress for a while (e.g. trapped and moving
+        // sideways) gets knocked loose
+        if (p.lowY === undefined || p.y > p.lowY + 4) { p.lowY = p.y; p.stuckT = 0; }
+        else if ((p.stuckT += dt) > 2.5) { p.vx = (Math.random() < 0.5 ? -1 : 1) * 260; p.vy = 120; p.stuckT = 0; }
+      } else if (p.fade === 0) {
+        const fx = bucketFx[p.bucket];
+        const surface = FLOOR - fx.fill;
+        if (p.y + PUCK_R >= surface - 1 || p.y >= FLOOR - PUCK_R - 1) p.fade = 0.0001;
+      }
+      if (p.fade > 0) {
+        p.fade += dt * 5;
+        if (p.fade >= 1) {
+          p.dead = true;
+          burst(p.x, p.y, p.dud ? '#6b6a8f' : slotColor(p.bucket), p.dud ? 5 : 12, 220);
+        }
+      }
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || p.y > H + 50) p.dead = true;
+      p.trail.push(p.x, p.y);
+      if (p.trail.length > 14) p.trail.splice(0, 2);
+    }
+    pucks = pucks.filter(p => !p.dead);
+
+    // Effects decay
+    for (const peg of pegs) peg.glow *= Math.pow(0.02, dt);
+    const max = Math.max(1, ...counts);
+    const maxFill = BUCKET_H - 60;
+    bucketFx.forEach((fx, i) => {
+      fx.glow *= Math.pow(0.05, dt);
+      fx.bump *= Math.pow(0.002, dt);
+      const target = counts[i] / max * maxFill;
+      fx.fill += (target - fx.fill) * Math.min(1, dt * 6);
+    });
+    for (const r of rings) r.t += dt;
+    rings = rings.filter(r => r.t < 0.35);
+    for (const q of particles) { q.life += dt; q.vy += 700 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.99; }
+    particles = particles.filter(q => q.life < q.max);
+    for (const f of floaters) f.t += dt;
+    floaters = floaters.filter(f => f.t < 0.9);
+    if (winner >= 0) { winPulse += dt; megaT += dt; }
+
+    // Coin shower: big coins pour in from both sides and both top corners, arcing across the board
+    if (fountainT > 0 && winner >= 0) {
+      fountainT -= dt;
+      for (let i = 0; i < 5; i++) {
+        const side = Math.random() < 0.5 ? -1 : 1, corner = Math.random() < 0.4;
+        const c = corner
+          ? { x: side < 0 ? -30 : W + 30, y: -30 + Math.random() * 60, vx: -side * (380 + Math.random() * 620), vy: 60 + Math.random() * 360 }
+          : { x: side < 0 ? -30 : W + 30, y: TOP_H * 0.5 + Math.random() * (BUCKET_TOP - TOP_H), vx: -side * (420 + Math.random() * 760), vy: -(200 + Math.random() * 560) };
+        fountain.push(Object.assign(c, { rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 18, flip: Math.random() * 6.28,
+                                         vf: 5 + Math.random() * 9, s: 2 + Math.random() * 1.4 }));
+      }
+    }
+    for (const f of fountain) { f.vy += 1100 * dt; f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.vr * dt; f.flip += f.vf * dt; }
+    fountain = fountain.filter(f => f.y < H + 60 && f.x > -120 && f.x < W + 120);
+
+    if (againLock > 0 && againLock !== Infinity) {
+      const shown = Math.ceil(againLock);
+      againLock = Math.max(0, againLock - dt);
+      if (Math.ceil(againLock) !== shown) refreshAgain();
+    }
+    updateMusic(dt);
+    tickCrowd();
+    rayBoost += (1 - rayBoost) * Math.min(1, dt * 0.8);
+    rayAngle += dt * 0.07 * rayBoost;
+
+    // The jackpot only ever goes up. Naturally.
+    jackpot += dt * (40 + Math.random() * 160);
+    if (clock - jackpotShown > 0.08) { jackpotShown = clock; $('jackpot').textContent = Math.floor(jackpot).toLocaleString('en-US'); }
+
+    if (state === 'running' || state === 'tiebreak') updateStatus();
+  }
+
+  // ---------- Rendering ----------
+  const hexA = (hex, a) => {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+  };
+  function fitText(text, maxW) {
+    if (ctx.measureText(text).width <= maxW) return text;
+    let s = text;
+    while (s.length > 1 && ctx.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+    return s.trimEnd() + '…';
+  }
+  function wrapLines(text, maxW, maxLines) {
+    const words = text.split(/\s+/), lines = [];
+    let cur = '';
+    for (const w of words) {
+      const t = cur ? cur + ' ' + w : w;
+      if (ctx.measureText(t).width <= maxW || !cur) cur = t;
+      else { lines.push(cur); cur = w; }
+    }
+    if (cur) lines.push(cur);
+    if (lines.length > maxLines) {
+      const keep = lines.slice(0, maxLines);
+      keep[maxLines - 1] = fitText(lines.slice(maxLines - 1).join(' '), maxW);
+      return keep;
+    }
+    return lines.map(l => fitText(l, maxW));
+  }
+  function roundRect(g, x, y, w, h, r) {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  }
+  const easeOutBack = u => 1 + 2.70158 * Math.pow(u - 1, 3) + 1.70158 * Math.pow(u - 1, 2);
+
+  // Pucks are British 5p coins, pre-rendered once at high resolution and drawn as a sprite
+  const COIN_RES = 8;   // sprite pixels per world unit
+  let coinSprite = null;
+  // Pegs are cut gems in three temple colours, plus a blazing gold version for hits
+  const GEM_R = 6.5, GEM_RES = 6;
+  let gemSprites = null, gemHot = null;
+  function makeGem(light, mid, dark, glow) {
+    const R = GEM_R * GEM_RES, pad = glow ? R * 1.4 : 4, c = document.createElement('canvas');
+    c.width = c.height = Math.ceil((R + pad) * 2);
+    const g = c.getContext('2d'), h = c.width / 2;
+    g.translate(h, h);
+    if (glow) {
+      const rg = g.createRadialGradient(0, 0, R * 0.2, 0, 0, R + pad);
+      rg.addColorStop(0, 'rgba(255,240,160,0.95)'); rg.addColorStop(0.4, 'rgba(255,190,40,0.45)'); rg.addColorStop(1, 'rgba(255,150,0,0)');
+      g.fillStyle = rg; g.fillRect(-h, -h, c.width, c.width);
+    }
+    const T = [0, -R], Rt = [R, 0], B = [0, R], L = [-R, 0], C = [-R * 0.12, -R * 0.18];
+    const facet = (pts, col) => { g.fillStyle = col; g.beginPath(); g.moveTo(...pts[0]); for (const p of pts.slice(1)) g.lineTo(...p); g.closePath(); g.fill(); };
+    facet([T, L, C], light); facet([T, Rt, C], mid); facet([L, B, C], mid); facet([Rt, B, C], dark);
+    g.strokeStyle = 'rgba(255,230,150,0.95)'; g.lineWidth = R * 0.13; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(...T); g.lineTo(...Rt); g.lineTo(...B); g.lineTo(...L); g.closePath(); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.beginPath(); g.ellipse(-R * 0.3, -R * 0.32, R * 0.16, R * 0.09, -0.8, 0, Math.PI * 2); g.fill();
+    return { c, size: c.width / GEM_RES };
+  }
+  function drawSprite(s, x, y, k = 1) {
+    const d = s.size * k;
+    ctx.drawImage(s.c, x - d / 2, y - d / 2, d, d);
+  }
+
+  function makeGradients() {
+    if (coinSprite) return;
+    const R = PUCK_R * COIN_RES, c = document.createElement('canvas');
+    c.width = c.height = R * 2 + 2;
+    const g = c.getContext('2d');
+    g.translate(R + 1, R + 1);
+
+    // Milled edge: alternating light/dark ridges around the rim
+    const ridges = 72;
+    for (let i = 0; i < ridges; i++) {
+      const a0 = i / ridges * Math.PI * 2, a1 = (i + 1) / ridges * Math.PI * 2;
+      g.fillStyle = i % 2 ? '#7d838c' : '#d5dae1';
+      g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R, a0, a1); g.closePath(); g.fill();
+    }
+    // Face: cupronickel silver, lit from the top left
+    const face = g.createRadialGradient(-R * 0.35, -R * 0.4, R * 0.05, 0, 0, R * 0.92);
+    face.addColorStop(0, '#ffffff');
+    face.addColorStop(0.45, '#d7dce3');
+    face.addColorStop(1, '#8f96a0');
+    g.fillStyle = face;
+    g.beginPath(); g.arc(0, 0, R * 0.9, 0, Math.PI * 2); g.fill();
+    // Raised rim
+    g.lineWidth = R * 0.07;
+    g.strokeStyle = 'rgba(255,255,255,0.75)';
+    g.beginPath(); g.arc(0, 0, R * 0.82, Math.PI * 0.75, Math.PI * 1.75); g.stroke();
+    g.strokeStyle = 'rgba(70,76,86,0.55)';
+    g.beginPath(); g.arc(0, 0, R * 0.82, Math.PI * 1.75, Math.PI * 2.75); g.stroke();
+    // Embossed lettering: dark shadow offset under a light highlight
+    const emboss = (text, font, y) => {
+      g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = 'rgba(60,66,76,0.75)'; g.fillText(text, R * 0.03, y + R * 0.03);
+      g.fillStyle = 'rgba(255,255,255,0.9)'; g.fillText(text, 0, y);
+    };
+    emboss('5', `800 ${R * 0.95}px Georgia, serif`, -R * 0.08);
+    emboss('PENCE', `700 ${R * 0.24}px Georgia, serif`, R * 0.5);
+    coinSprite = c;
+
+    gemSprites = [
+      makeGem('#b8fdff', '#19d3e0', '#08707f'),   // turquoise
+      makeGem('#b3ffd9', '#18c98a', '#065f42'),   // jade
+      makeGem('#ffb3da', '#ff2e88', '#8a0a45'),   // ruby
+    ];
+    gemHot = makeGem('#ffffff', '#ffe27a', '#ffa800', true);
+  }
+  function drawCoin(x, y, rot, s = 1) {
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(rot); ctx.scale(s, s);
+    const d = (PUCK_R * COIN_RES * 2 + 2) / COIN_RES;
+    ctx.drawImage(coinSprite, -d / 2, -d / 2, d, d);
+    ctx.restore();
+  }
+
+  // Static scenery (jungle art, friezes) rendered once per resize, and again once the art loads
+  let bgLayer = null;
+  const jungle = typeof Image === 'undefined' ? null : new Image();
+  if (jungle) { jungle.onload = () => renderBgLayer(); jungle.src = 'images/AztecTower_Background_1452x720.png'; }
+  function fretRow(g, y, step, color) {
+    g.strokeStyle = color; g.lineWidth = 2;
+    g.beginPath();
+    for (let x = -step; x < W + step; x += step * 6) {
+      g.moveTo(x, y); g.lineTo(x + step, y); g.lineTo(x + step, y - step); g.lineTo(x + step * 2, y - step);
+      g.lineTo(x + step * 2, y - step * 2); g.lineTo(x + step * 4, y - step * 2); g.lineTo(x + step * 4, y - step);
+      g.lineTo(x + step * 5, y - step); g.lineTo(x + step * 5, y); g.lineTo(x + step * 6, y);
+    }
+    g.stroke();
+  }
+  function renderBgLayer() {
+    const k = scale * dpr;
+    bgLayer = document.createElement('canvas');
+    bgLayer.width = Math.max(1, Math.round(W * k)); bgLayer.height = Math.max(1, Math.round(H * k));
+    const g = bgLayer.getContext('2d');
+    g.setTransform(k, 0, 0, k, 0, 0);
+
+    // Jungle art covering everything above the slots, dimmed a little so the gems and coins stand out
+    if (jungle && jungle.complete && jungle.naturalWidth) {
+      const h = BUCKET_TOP, s = Math.max(W / jungle.naturalWidth, h / jungle.naturalHeight);
+      const iw = jungle.naturalWidth * s, ih = jungle.naturalHeight * s;
+      g.save();
+      g.beginPath(); g.rect(0, 0, W, h); g.clip();
+      g.drawImage(jungle, (W - iw) / 2, (h - ih) / 2, iw, ih);
+      const dim = g.createLinearGradient(0, TOP_H, 0, BUCKET_TOP);
+      dim.addColorStop(0, 'rgba(6,4,18,0.45)'); dim.addColorStop(0.6, 'rgba(6,4,18,0.3)'); dim.addColorStop(1, 'rgba(6,4,18,0.6)');
+      g.fillStyle = dim;
+      g.fillRect(0, TOP_H, W, h - TOP_H);
+      g.restore();
+    }
+
+    // The strip the idol rides in: the same canopy, shaded deeper so the idol stands out
+    const fz = g.createLinearGradient(0, 0, 0, TOP_H);
+    fz.addColorStop(0, 'rgba(8,12,16,0.82)'); fz.addColorStop(1, 'rgba(8,12,16,0.55)');
+    g.fillStyle = fz;
+    g.fillRect(0, 0, W, TOP_H);
+    fretRow(g, TOP_H - 2, 4, 'rgba(255,204,51,0.75)');
+    g.fillStyle = '#ffcc33';
+    g.fillRect(0, TOP_H - 1, W, 2);
+
+    // Stone base behind the slots
+    const st = g.createLinearGradient(0, BUCKET_TOP, 0, H);
+    st.addColorStop(0, '#1d1028'); st.addColorStop(1, '#0d0614');
+    g.fillStyle = st;
+    g.fillRect(0, BUCKET_TOP, W, H - BUCKET_TOP);
+  }
+
+  function render() {
+    ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+
+    // Night-sky fallback until the jungle art has loaded
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#3a0866');
+    bg.addColorStop(0.55, '#170330');
+    bg.addColorStop(1, '#08010f');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    if (bgLayer) ctx.drawImage(bgLayer, 0, 0, W, H);
+
+    // Sunlight through the canopy: a warm glow and slowly turning god rays over the jungle
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, TOP_H, W, BUCKET_TOP - TOP_H); ctx.clip();
+    ctx.globalCompositeOperation = 'lighter';
+    const sun = ctx.createRadialGradient(W / 2, SUN_Y, 10, W / 2, SUN_Y, 460);
+    sun.addColorStop(0, `rgba(255,200,90,${0.22 * Math.min(2.5, rayBoost)})`);
+    sun.addColorStop(1, 'rgba(255,150,40,0)');
+    ctx.fillStyle = sun;
+    ctx.fillRect(0, 0, W, H);
+    drawRays();
+    ctx.restore();
+
+    drawBulbs();
+    if (state === 'setup') {
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255,230,160,0.8)';
+      ctx.font = `14px ${HEADING}`;
+      ctx.fillText(mode === 'party'
+        ? `JOIN: ${padConnected ? 'Ⓐ ON EACH CONTROLLER, ' : ''}SPACE FOR KEYBOARD  ·  FIRE: Ⓐ / SPACE  ·  AIM: STICK / ← →  ·  BOOST: Ⓧ / SHIFT`
+        : `${padConnected ? 'PRESS DROP, SPACE OR Ⓐ' : 'PRESS DROP OR SPACE'}  ·  HOLD TO KEEP DROPPING`, W / 2, TOP_H - 16);
+    }
+    drawDropper();
+    drawBuckets();
+
+    // Gem pegs
+    for (const p of pegs) drawSprite(gemSprites[p.row % 3], p.x, p.y);
+    for (const p of pegs) {
+      if (p.glow < 0.03) continue;
+      ctx.globalAlpha = Math.min(1, p.glow * 1.2);
+      drawSprite(gemHot, p.x, p.y, 1 + 0.35 * p.glow);
+    }
+    ctx.globalAlpha = 1;
+    drawObstacles();
+
+    ctx.globalCompositeOperation = 'lighter';
+    // Star glints on hard hits
+    for (const r of rings) {
+      const k = r.t / 0.35, len = 5 + k * 14;
+      ctx.strokeStyle = `rgba(255,240,180,${0.8 * (1 - k)})`;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(r.x - len, r.y); ctx.lineTo(r.x + len, r.y);
+      ctx.moveTo(r.x, r.y - len); ctx.lineTo(r.x, r.y + len);
+      ctx.stroke();
+    }
+    // Puck trails
+    for (const p of pucks) {
+      if (p.dead) continue;
+      const t = p.trail, n = t.length / 2;
+      const owner = mode === 'party' && players[p.owner];
+      for (let i = 0; i < n - 1; i++) {
+        const k = (i + 1) / n;
+        ctx.fillStyle = owner ? hexA(owner.color, 0.22 * k * (1 - p.fade)) : `rgba(255,210,120,${0.16 * k * (1 - p.fade)})`;
+        ctx.beginPath(); ctx.arc(t[i * 2], t[i * 2 + 1], PUCK_R * (0.35 + 0.55 * k), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Pucks
+    for (const p of pucks) {
+      if (p.dead) continue;
+      ctx.globalAlpha = 1 - p.fade;
+      drawCoin(p.x, p.y, p.rot, 1 - p.fade * 0.6);
+      if (mode === 'party' && players[p.owner]) drawCoinRing(p.x, p.y, players[p.owner].color, 1 - p.fade * 0.6);
+    }
+    ctx.globalAlpha = 1;
+
+    // Particles
+    ctx.globalCompositeOperation = 'lighter';
+    for (const q of particles) {
+      const k = 1 - q.life / q.max;
+      ctx.fillStyle = hexA(q.color, k);
+      ctx.beginPath(); ctx.arc(q.x, q.y, q.size * (0.5 + k * 0.5), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    drawFloaters();
+    for (const f of fountain) {
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.scale(Math.max(0.15, Math.abs(Math.cos(f.flip))), 1);   // coins flipping end over end
+      drawCoin(0, 0, f.rot, f.s);
+      ctx.restore();
+    }
+    drawMegaWin();
+    drawCountdown();
+  }
+
+  function drawRays() {
+    const n = 16, R = 1400;
+    ctx.save();
+    ctx.translate(W / 2, SUN_Y);
+    ctx.rotate(rayAngle);
+    const a = Math.min(2.5, rayBoost);
+    for (let i = 0; i < n; i++) {
+      const a0 = i / n * Math.PI * 2, a1 = a0 + Math.PI / n;
+      ctx.fillStyle = i % 2 ? `rgba(255,220,130,${0.06 * a})` : `rgba(150,255,190,${0.035 * a})`;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, a0, a1); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Chasing marquee bulbs along the top and bottom edges of the screen
+  function drawBulbs() {
+    const gap = 24, phase = Math.floor(clock * (winner >= 0 ? 16 : 7));
+    for (const y of [5, H - 3]) {
+      let i = 0;
+      for (let x = 12; x < W; x += gap, i++) {
+        const lit = (i + phase) % 3 === 0;
+        ctx.fillStyle = lit ? (i % 2 ? '#fffbe0' : '#ffd1ea') : (i % 2 ? '#7a5a10' : '#6a1040');
+        ctx.beginPath(); ctx.arc(x, y, 2.8, 0, Math.PI * 2); ctx.fill();
+        if (lit) {
+          ctx.fillStyle = i % 2 ? 'rgba(255,204,51,0.35)' : 'rgba(255,46,136,0.35)';
+          ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+  }
+
+  // The dropper is the golden idol mask riding the rail, spitting coins from its mouth
+  const IDOL_H = 165, IDOL_TOP = 4;         // 2.5x the original 66
+  const IDOL_MOUTH = [0.506, 0.79], IDOL_EYES = [[0.377, 0.583], [0.628, 0.583]];   // as fractions of the image
+  const SPAWN_Y = IDOL_TOP + IDOL_H * IDOL_MOUTH[1];
+  const idolImg = typeof Image === 'undefined' ? null : new Image();
+  if (idolImg) idolImg.src = 'images/ui/idol.png';
+  function drawRail() {
+    const rg = ctx.createLinearGradient(0, 14, 0, 20);
+    rg.addColorStop(0, '#fff0a8'); rg.addColorStop(1, '#a8740f');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 14, W, 6);
+  }
+  function drawDropper() {
+    drawRail();
+    if (mode === 'party') {
+      for (const p of players) {
+        drawIdol({ x: p.x, v: p.v, kick: p.kick, live: state === 'setup' || (state === 'running' && p.coins > 0),
+                   color: p.color, label: playerName(p.slot), boost: p.boost, s: PARTY_IDOL, aim: p.aim, stun: p.stun });
+      }
+    } else {
+      drawIdol({ x: dropperX, v: dropperV, kick: dropperKick, live: canDrop() || state === 'setup', s: 1 });
+    }
+  }
+  // Each party player's idol is the mask recoloured in their colour. 'color' blending keeps the mask's
+  // own light and shade (so the gloss survives) and takes only the hue; its alpha is then restored.
+  const tintedIdols = {};
+  function idolArt(color) {
+    if (!color) return idolImg;
+    if (!tintedIdols[color]) {
+      const c = document.createElement('canvas');
+      c.width = idolImg.naturalWidth; c.height = idolImg.naturalHeight;
+      const g = c.getContext('2d');
+      g.drawImage(idolImg, 0, 0);
+      g.globalCompositeOperation = 'color';
+      g.fillStyle = color;
+      g.fillRect(0, 0, c.width, c.height);
+      g.globalCompositeOperation = 'destination-in';
+      g.drawImage(idolImg, 0, 0);
+      tintedIdols[color] = c;
+    }
+    return tintedIdols[color];
+  }
+
+  // One idol on the rail. In party mode it's drawn in its player's colour, with a halo, coloured eyes and a P1–P4 tag.
+  // Party coins always leave from the same point, the upright mask's mouth, in the stick's direction;
+  // the mask's drawn sway plays no part in the shot
+  function shooterMouth(x) {
+    return [Math.max(PUCK_R, Math.min(W - PUCK_R, x)), IDOL_TOP + IDOL_H * PARTY_IDOL * IDOL_MOUTH[1]];
+  }
+  function drawIdol({ x, v, kick: k, live, color = null, label = '', boost = 0, s, aim = null, stun = 0 }) {
+    const spawnY = IDOL_TOP + IDOL_H * s * IDOL_MOUTH[1];
+    const bob = -k * 9 * s;
+    let coinX = x, coinY = spawnY + bob;
+    if (aim === null) {
+      ctx.strokeStyle = color ? hexA(color, live ? 0.35 : 0.1) : `rgba(255,213,107,${live ? 0.22 : 0.07})`;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 6]);
+      ctx.beginPath(); ctx.moveTo(x, spawnY + 10); ctx.lineTo(x, PEG_TOP - 12); ctx.stroke();
+      ctx.setLineDash([]);
+    } else {
+      // Shooter: a straight dotted ray along the aim, showing the intended direction (not the dropper's
+      // drift or gravity), out to the first peg row or a fixed length when aimed nearly flat
+      const [mx, my] = shooterMouth(x);
+      coinX = mx; coinY = my + bob;
+      const dx = Math.sin(aim), dy = Math.cos(aim);
+      ctx.fillStyle = hexA(color, live ? 0.75 : 0.15);
+      for (let d = 14; d < 340; d += 13) {
+        let px = mx + dx * d;
+        const py = my + dy * d;
+        if (py > PEG_TOP - 8) break;
+        if (px < PUCK_R) px = 2 * PUCK_R - px;                   // fold back off the walls
+        if (px > W - PUCK_R) px = 2 * (W - PUCK_R) - px;
+        ctx.beginPath(); ctx.arc(px, py, 3.4 * (1 - d / 520), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    if (idolImg && idolImg.complete && idolImg.naturalWidth) {
+      const ih = IDOL_H * s, iw = ih * idolImg.naturalWidth / idolImg.naturalHeight;
+      // Boost: speed streaks trailing behind
+      if (color && boost > 0) {
+        ctx.strokeStyle = hexA(color, 0.7 * boost);
+        ctx.lineWidth = 3;
+        for (let i = 0; i < 5; i++) {
+          const y = IDOL_TOP + ih * (0.25 + i * 0.13), len = 40 + 30 * Math.sin(clock * 30 + i);
+          ctx.beginPath(); ctx.moveTo(x - Math.sign(v) * iw * 0.45, y); ctx.lineTo(x - Math.sign(v) * (iw * 0.45 + len), y); ctx.stroke();
+        }
+      }
+      if (color) {
+        const r = iw * (0.62 + 0.15 * boost);
+        const halo = ctx.createRadialGradient(x, IDOL_TOP + ih * 0.5, 0, x, IDOL_TOP + ih * 0.5, r);
+        halo.addColorStop(0, hexA(color, 0.45 + 0.3 * boost)); halo.addColorStop(1, hexA(color, 0));
+        ctx.fillStyle = halo;
+        ctx.beginPath(); ctx.arc(x, IDOL_TOP + ih * 0.5, r, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.save();
+      // Hangs from the rail and sways, leaning into its direction of travel; a party shooter instead
+      // turns to point its mouth straight along its aim
+      const oy = 0;
+      ctx.translate(x, IDOL_TOP + bob);
+      // A party shooter only sways a touch, so its mouth stays put over the firing point
+      ctx.rotate(aim === null
+        ? Math.sin(clock * 2.2 + x * 0.01) * 0.04 - Math.sign(v) * (0.05 + 0.08 * boost)
+        : Math.sin(clock * 2.2 + x * 0.01) * 0.015 + Math.sin(clock * 38) * 0.45 * Math.min(1, stun * 1.5));   // wobbles after a ram
+      ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 4;
+      ctx.drawImage(idolArt(color), -iw / 2, oy, iw, ih);
+      ctx.shadowColor = 'transparent'; ctx.shadowOffsetY = 0;
+      // Eyes: a pulsing glow while there are coins to drop, flaring each time it spits;
+      // once the coins run out the sockets go dead grey
+      for (const [ex, ey] of IDOL_EYES) {
+        const gx = (ex - 0.5) * iw, gy = ey * ih + oy;
+        if (live) {
+          const a = Math.min(1, 0.4 + 0.15 * Math.sin(clock * 4) + k * 0.6), r = (14 + k * 8) * s;
+          ctx.globalCompositeOperation = 'lighter';
+          const glow = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
+          glow.addColorStop(0, color ? hexA(color, Math.min(1, a + 0.3)) : `rgba(255,250,200,${a})`);
+          glow.addColorStop(1, color ? hexA(color, 0) : 'rgba(255,180,40,0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath(); ctx.arc(gx, gy, r, 0, Math.PI * 2); ctx.fill();
+          ctx.globalCompositeOperation = 'source-over';
+        } else {
+          const r = ih * 0.034;   // just inside the gold eye ring
+          const dead = ctx.createRadialGradient(gx - r * 0.3, gy - r * 0.3, 0, gx, gy, r);
+          dead.addColorStop(0, '#4a4a4a'); dead.addColorStop(1, '#1e1e1e');
+          ctx.fillStyle = dead;
+          ctx.beginPath(); ctx.arc(gx, gy, r, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.restore();
+      if (label) {
+        // Player name, just right of the mouth so it stays clear of the shot
+        ctx.font = `19px ${HEADING}`;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round'; ctx.lineWidth = 5; ctx.strokeStyle = '#0a0612';
+        const lx = x + iw * 0.2, ly = IDOL_TOP + ih + 14 + bob;
+        ctx.strokeText(label, lx, ly);
+        ctx.fillStyle = color;
+        ctx.fillText(label, lx, ly);
+      }
+    }
+
+    // The next coin waits in its mouth
+    if (live) {
+      ctx.globalAlpha = 1 - Math.min(1, k * 1.4);
+      drawCoin(coinX, coinY, 0, 1.1 * Math.max(0.85, s));
+      if (color) drawCoinRing(coinX, coinY, color, 1.1 * Math.max(0.85, s));
+      ctx.globalAlpha = 1;
+    }
+  }
+  function drawCoinRing(x, y, color, s = 1) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(x, y, (PUCK_R + 1) * s, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // Sliding bouncy slabs (party mode), with a random glyph pattern along the top
+  function drawGlyph(shape, x, y, sz, flip) {
+    ctx.beginPath();
+    switch (shape) {
+      case 'diamond': ctx.moveTo(x, y - sz); ctx.lineTo(x + sz, y); ctx.lineTo(x, y + sz); ctx.lineTo(x - sz, y); ctx.closePath(); ctx.fill(); break;
+      case 'tri': { const d = flip ? -1 : 1; ctx.moveTo(x - sz, y + sz * d); ctx.lineTo(x + sz, y + sz * d); ctx.lineTo(x, y - sz * d); ctx.closePath(); ctx.fill(); break; }
+      case 'dot': ctx.arc(x, y, sz * 0.75, 0, Math.PI * 2); ctx.fill(); break;
+      case 'zig': ctx.moveTo(x - sz, y + sz * 0.5); ctx.lineTo(x - sz * 0.33, y - sz * 0.5); ctx.lineTo(x + sz * 0.33, y + sz * 0.5); ctx.lineTo(x + sz, y - sz * 0.5); ctx.stroke(); break;
+      case 'step': { const d = flip ? -1 : 1; ctx.moveTo(x - sz * d, y + sz); ctx.lineTo(x - sz * d, y); ctx.lineTo(x, y); ctx.lineTo(x, y - sz); ctx.lineTo(x + sz * d, y - sz); ctx.stroke(); break; }
+      case 'bar': ctx.fillRect(x - sz * 0.3, y - sz, sz * 0.6, sz * 2); break;
+    }
+  }
+  function drawObstacles() {
+    for (const s of obstacles) {
+      // Squashes a little when something bounces off it
+      const sq = s.squash, hx = (s.half + s.r) * (1 + sq * 0.06), hy = s.r * (1 - sq * 0.3);
+      const x0 = s.x - hx, w = hx * 2, y0 = s.y - hy, h = hy * 2;
+      if (s.glow > 0.02) {
+        ctx.fillStyle = `rgba(255,204,51,${0.35 * s.glow})`;
+        roundRect(ctx, x0 - 6, y0 - 6, w + 12, h + 12, hy + 6); ctx.fill();
+      }
+      const g = ctx.createLinearGradient(0, y0, 0, y0 + h);
+      g.addColorStop(0, '#9aa3b5'); g.addColorStop(0.5, '#5d6678'); g.addColorStop(1, '#353c4a');
+      ctx.fillStyle = g;
+      roundRect(ctx, x0, y0, w, h, hy); ctx.fill();
+      // Glyph tiles along the top, clipped to the slab
+      ctx.save();
+      roundRect(ctx, x0, y0, w, h, hy); ctx.clip();
+      const n = s.pattern.length, step = w / n, sz = Math.min(step * 0.36, hy * 0.62);
+      ctx.lineWidth = 1.8; ctx.lineJoin = 'round';
+      s.pattern.forEach((t, i) => {
+        ctx.fillStyle = ctx.strokeStyle = t.color;
+        drawGlyph(t.shape, x0 + step * (i + 0.5), s.y, sz, t.flip);
+      });
+      ctx.restore();
+      roundRect(ctx, x0, y0, w, h, hy);
+      ctx.strokeStyle = '#ffcc33'; ctx.lineWidth = 2; ctx.stroke();
+    }
+  }
+
+  function drawBuckets() {
+    const n = slotCount(), bw = SPAN / n, party = mode === 'party';
+    const max = Math.max(...counts);
+    const lead = max > 0 && !party ? leaders() : [];
+
+    for (let i = 0; i < n; i++) {
+      const x0 = slotEdge(i), sw = slotEdge(i + 1) - x0, color = slotColor(i), fx = bucketFx[i];
+      const isWinner = i === winBucket, cx = x0 + sw / 2;
+
+      // Temple doorway tinted in the movie's colour
+      const bg = ctx.createLinearGradient(0, BUCKET_TOP, 0, FLOOR);
+      bg.addColorStop(0, hexA(color, 0.3)); bg.addColorStop(1, hexA(color, 0.06));
+      ctx.fillStyle = bg;
+      ctx.fillRect(x0, BUCKET_TOP, sw, FLOOR - BUCKET_TOP);
+
+      // Fill level, with a rippling surface
+      if (fx.fill > 0.5) {
+        const top = FLOOR - fx.fill, xa = x0 + 3, xb = x0 + sw - 3;
+        const wave = x => top + Math.sin(x * 0.12 + clock * 4 + i) * 1.8;
+        const g = ctx.createLinearGradient(0, top, 0, FLOOR);
+        g.addColorStop(0, hexA(color, 0.95)); g.addColorStop(1, hexA(color, 0.35));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(xa, FLOOR);
+        for (let x = xa; x <= xb; x += 4) ctx.lineTo(x, wave(x));
+        ctx.lineTo(xb, wave(xb)); ctx.lineTo(xb, FLOOR);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(xa, wave(xa));
+        for (let x = xa + 4; x <= xb; x += 4) ctx.lineTo(x, wave(x));
+        ctx.stroke();
+      }
+
+      // Land flash / winner pulse
+      let glow = fx.glow;
+      if (isWinner) glow = Math.max(glow, 0.45 + 0.4 * Math.sin(winPulse * 8));
+      if (glow > 0.02) {
+        ctx.globalCompositeOperation = 'lighter';
+        const g = ctx.createLinearGradient(0, BUCKET_TOP, 0, FLOOR);
+        g.addColorStop(0, hexA(color, 0.0));
+        g.addColorStop(1, hexA(color, 0.6 * glow));
+        ctx.fillStyle = g;
+        ctx.fillRect(x0, BUCKET_TOP - 30, sw, FLOOR - BUCKET_TOP + 30);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      // Counter: a carved stone tablet with the count in Tower Gold, glowing in the slot's colour
+      const mw = Math.min(sw - 8, 84 + bw * 0.18), mh = Math.min(62, 42 + bw * 0.06), my = BUCKET_TOP + 4;
+      drawStoneFrame(cx - mw / 2, my, mw, mh, Math.min(10, mh * 0.2));
+      const size = Math.min(40, bw * 0.34, mh * 0.62) * (1 + fx.bump * 0.3);
+      ctx.save();
+      ctx.shadowColor = fx.bump > 0.05 ? '#ffffff' : color; ctx.shadowBlur = 10 + fx.bump * 14;
+      goldText(goldFonts.tower, String(counts[i]), cx, my + mh / 2, size);
+      ctx.restore();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (lead.length === 1 && lead[0] === i || isWinner) {
+        ctx.font = `${Math.min(20, bw * 0.4)}px system-ui, sans-serif`;
+        ctx.fillText('👑', cx, BUCKET_TOP - 14 + Math.sin(clock * 5) * 2);
+      }
+
+      // Label
+      const labelTop = BUCKET_TOP + 68, labelBottom = FLOOR - 8;
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 5;
+      if (party) {
+        // The pot's value in Tower Gold, glowing in its tier colour, shrunk if needed so "$100" fits the pot
+        const v = PARTY_POTS[i], text = money(v);
+        let fs = Math.min(56, bw * 0.3) * (v === 100 ? 1.12 : 1);
+        fs *= Math.min(1, (bw - 18) / goldMeasure(goldFonts.tower, text, fs)) * (1 + Math.sin(clock * 3 + i) * 0.03);
+        ctx.shadowColor = color; ctx.shadowBlur = 22;
+        goldText(goldFonts.tower, text, cx, (labelTop + labelBottom) / 2, fs);
+      } else if (bw >= 100) {
+        const fs = Math.min(24, Math.max(14, bw / 9));
+        ctx.font = `${fs * 1.1}px ${BODY}`;
+        const lines = wrapLines(movies[i], bw - 16, Math.max(1, Math.floor((labelBottom - labelTop) / (fs * 1.2))));
+        const lh = fs * 1.2, startY = (labelTop + labelBottom) / 2 - (lines.length - 1) * lh / 2;
+        lines.forEach((l, k) => ctx.fillText(l, cx, startY + k * lh));
+      } else {
+        const fs = Math.max(10, Math.min(15, bw * 0.36));
+        ctx.font = `${fs * 1.1}px ${BODY}`;
+        ctx.save();
+        ctx.translate(cx, labelBottom);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'left';
+        ctx.fillText(fitText(movies[i], labelBottom - labelTop), 0, 0);
+        ctx.restore();
+      }
+      ctx.shadowBlur = 0;
+
+      if (state === 'tiebreak' && !tied.includes(i)) {
+        ctx.fillStyle = 'rgba(6,2,12,0.65)';
+        ctx.fillRect(x0, BUCKET_TOP - 30, sw, FLOOR - BUCKET_TOP + 30);
+      }
+    }
+
+    // Gold pillars topped with little gems
+    for (const d of dividers) {
+      const g = ctx.createLinearGradient(d.x - DIV_R, 0, d.x + DIV_R, 0);
+      g.addColorStop(0, '#7a4a00'); g.addColorStop(0.5, '#ffe58a'); g.addColorStop(1, '#7a4a00');
+      ctx.fillStyle = g;
+      ctx.fillRect(d.x - DIV_R, d.y1, DIV_R * 2, d.y2 - d.y1);
+      ctx.fillStyle = '#ffcc33';
+      ctx.beginPath(); ctx.moveTo(d.x, d.y1 - 6); ctx.lineTo(d.x + 5, d.y1); ctx.lineTo(d.x, d.y1 + 5); ctx.lineTo(d.x - 5, d.y1); ctx.closePath(); ctx.fill();
+    }
+    const fl = ctx.createLinearGradient(0, FLOOR, 0, H);
+    fl.addColorStop(0, '#ffe58a'); fl.addColorStop(1, '#7a4a00');
+    ctx.fillStyle = fl;
+    ctx.fillRect(0, FLOOR, W, H - FLOOR);
+  }
+
+  // "+1" (or "+100" in party mode, in the scorer's colour) pops above a slot each time it scores
+  function drawFloaters() {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    for (const f of floaters) {
+      const k = f.t / 0.9, y = f.y - 34 * (1 - Math.pow(1 - k, 2));
+      ctx.font = `${f.big ? 30 : 18}px ${DISPLAY}`;
+      ctx.globalAlpha = 1 - k * k;
+      ctx.lineWidth = 4; ctx.strokeStyle = '#2a0545';
+      ctx.strokeText(f.text, f.x, y);
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, f.x, y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Stone tablet frame from the UI sheet, nine-sliced onto the canvas around a dark LED-style screen
+  const stoneTablet = typeof Image === 'undefined' ? null : new Image();
+  if (stoneTablet) stoneTablet.src = 'images/ui/stone_tablet.png';
+  function drawStoneFrame(x, y, w, h, b) {
+    roundRect(ctx, x + b * 0.6, y + b * 0.6, w - b * 1.2, h - b * 1.2, 4);
+    ctx.fillStyle = '#07000c'; ctx.fill();
+    if (!stoneTablet || !stoneTablet.complete || !stoneTablet.naturalWidth) return;
+    const img = stoneTablet, S = 30, iw = img.naturalWidth, ih = img.naturalHeight;
+    const sx = [0, S, iw - S, iw], sy = [0, S, ih - S, ih];
+    const dx = [x, x + b, x + w - b, x + w], dy = [y, y + b, y + h - b, y + h];
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+      if (r === 1 && c === 1) continue;   // leave the middle as the dark screen
+      ctx.drawImage(img, sx[c], sy[r], sx[c + 1] - sx[c], sy[r + 1] - sy[r], dx[c], dy[r], dx[c + 1] - dx[c], dy[r + 1] - dy[r]);
+    }
+  }
+
+  // ---------- Banner boasts ----------
+  // Deadpan slot-machine nonsense that pops in and out either side of the logo,
+  // the two sides alternating. Shuffled, so the order differs every time.
+  const BANNER_MSGS = [
+    'GAMBLING IS GOOD FOR YOU', '9/11 DOCTORS AGREE', ':sun_face: GAMBLE :sun_face:', "YOU'LL DEFINITELY WIN THIS TIME",
+    'YOU KNOW YOU WANT TO', 'NOT RIGGED!', 'NEXT ONE IS A JACKPOT!', "DON'T END IT ALL, GAMBLE!",
+    'THE CAKE IS A LIE', '150% HYPERBOLE', 'NEVER GONNA GIVE UP!', 'SEND NUDES :eye:', '(GONE SEXUAL)', '(NOT CLICKBAIT)', '#FINANCIALADVICE', '#LIVELAUGHGAMBLE',
+  ];
+  for (let i = BANNER_MSGS.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [BANNER_MSGS[i], BANNER_MSGS[j]] = [BANNER_MSGS[j], BANNER_MSGS[i]]; }
+  let bannerMsgIdx = 0;
+  function showBannerMsg(el) {
+    const text = BANNER_MSGS[bannerMsgIdx++ % BANNER_MSGS.length];
+    const old = el.firstElementChild;
+    if (old) { old.classList.remove('in'); old.classList.add('out'); setTimeout(() => old.remove(), 320); }
+    let node;
+    const font = goldFonts.tower;
+    if (goldReady(font)) {
+      // Sized to the free space, so long messages shrink to fit narrower windows. Drawn with goldText,
+      // which expands :sun_face:-style shortcodes and fills in characters the font lacks (like "/").
+      node = document.createElement('canvas');
+      const g = node.getContext('2d'), dpr = window.devicePixelRatio || 1;
+      const room = el.clientWidth - 8;
+      const size = Math.max(14, Math.min(40, 40 * room / (goldMeasure(font, text, 40, g) + 24)));
+      const w = Math.ceil(goldMeasure(font, text, size, g) + size * 0.6), h = Math.ceil(size * 1.5);
+      node.width = w * dpr; node.height = h * dpr;
+      node.style.width = w + 'px'; node.style.height = h + 'px';
+      g.scale(dpr, dpr);
+      goldText(font, text, w / 2, h / 2, size, 'center', g);
+      node.setAttribute('role', 'img');
+      node.setAttribute('aria-label', text.replace(/:([a-z_]+):/g, ''));
+    } else {
+      node = document.createElement('span');
+      node.className = 'fallback';
+      node.textContent = text;
+    }
+    node.style.position = 'absolute';
+    el.style.position = 'relative';
+    el.append(node);
+    node.getBoundingClientRect();   // commit the hidden starting state so the pop-in transition runs
+    node.classList.add('in');
+  }
+  function startBannerMessages() {
+    if (typeof document === 'undefined' || !$('msgLeft').append) return;
+    const left = $('msgLeft'), right = $('msgRight');
+    const go = () => {
+      showBannerMsg(left);
+      setTimeout(() => showBannerMsg(right), 1700);
+      setInterval(() => showBannerMsg(left), 3400);
+      setTimeout(() => setInterval(() => showBannerMsg(right), 3400), 1700);
+    };
+    // Wait (briefly) for the gold font so the first boasts aren't in the fallback font
+    const font = goldFonts.tower;
+    if (font && !goldReady(font)) {
+      let started = false;
+      const once = () => { if (!started) { started = true; go(); } };
+      font.atlas.addEventListener('load', once);
+      setTimeout(once, 2500);
+    } else go();
+  }
+
+  // ---------- Gold bitmap fonts ----------
+  // The Aztec / Tower gold packs only have A–Z and 0–9, so text is split into runs: glyphs the pack has
+  // are drawn from its atlas, anything else ($ , · & ! :) in the display font, coloured gold to blend in.
+  const goldFonts = {};
+  if (typeof GoldFont !== 'undefined' && typeof GOLD_FONT_DATA !== 'undefined') {
+    for (const [slug, meta] of Object.entries(GOLD_FONT_DATA)) {
+      const atlas = new Image();
+      atlas.src = `images/fonts/${slug}/${meta.atlas}`;
+      goldFonts[slug] = new GoldFont(meta, atlas);
+    }
+  }
+  const goldReady = f => f && f.atlas.complete && f.atlas.naturalWidth;
+  function goldRuns(font, text) {
+    const runs = [];
+    for (const ch of font.expand ? font.expand(text) : text) {
+      const gold = ch === ' ' || !!font.glyph(ch), last = runs[runs.length - 1];
+      if (last && last.gold === gold) last.text += ch; else runs.push({ text: ch, gold });
+    }
+    return runs;
+  }
+  function goldMeasure(font, text, size, g = ctx) {
+    g.font = `${size * 1.05}px ${DISPLAY}`;
+    if (!goldReady(font)) return g.measureText(text).width;
+    return goldRuns(font, text).reduce((w, r) => w + (r.gold ? font.measure(r.text, { size }) : g.measureText(r.text).width + size * 0.1), 0);
+  }
+  // Draws text with its capitals centred vertically on y. Falls back to the display font until the atlas loads.
+  function goldText(font, text, x, y, size, align = 'center', g = ctx) {
+    const total = goldMeasure(font, text, size, g);
+    let cx = align === 'center' ? x - total / 2 : align === 'right' ? x - total : x;
+    const ready = goldReady(font), m = ready ? font.meta : null;
+    const sc = ready ? size / m.capHeight : 1;
+    const top = ready ? y - (m.base - m.capHeight / 2) * sc : y;
+    const baseline = ready ? top + m.base * sc : y + size * 0.36;
+    const fill = g.createLinearGradient(0, baseline - size, 0, baseline);
+    fill.addColorStop(0, '#fff3b0'); fill.addColorStop(0.5, '#ffcc33'); fill.addColorStop(1, '#b8740a');
+    g.font = `${size * 1.05}px ${DISPLAY}`;
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.lineJoin = 'round';
+    for (const r of ready ? goldRuns(font, text) : [{ text, gold: false }]) {
+      if (r.gold) {
+        font.draw(g, r.text, cx, top, { size });
+        cx += font.measure(r.text, { size });
+      } else {
+        const px = cx + (ready ? size * 0.05 : 0);
+        g.lineWidth = size * 0.16; g.strokeStyle = '#3a1d00';
+        g.strokeText(r.text, px, baseline);
+        g.fillStyle = fill;
+        g.fillText(r.text, px, baseline);
+        cx += g.measureText(r.text).width + (ready ? size * 0.1 : 0);
+      }
+    }
+    return total;
+  }
+
+  // 3 · 2 · 1 · GO! after START GAME: each pops in over a dimmed board with a gold burst behind it
+  function drawCountdown() {
+    if (countdownT < 0) return;
+    const i = Math.min(3, Math.floor(countdownT / COUNT_STEP)), u = (countdownT % COUNT_STEP) / COUNT_STEP;
+    const go = i === 3, cy = (TOP_H + BUCKET_TOP) / 2;
+    ctx.fillStyle = `rgba(4,8,6,${go ? 0.35 * (1 - u) : 0.35})`;
+    ctx.fillRect(0, TOP_H, W, BUCKET_TOP - TOP_H);
+
+    const pop = Math.max(0, easeOutBack(Math.min(1, u * 3.2)));
+    const alpha = go ? 1 - Math.max(0, (u - 0.45) / 0.55) : 1 - Math.max(0, (u - 0.8) / 0.2);
+    const size = (go ? 210 : 260) * pop * (go ? 1 + u * 0.35 : 1);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    // Burst of light behind the number
+    ctx.globalCompositeOperation = 'lighter';
+    const r = 260 * pop;
+    const glow = ctx.createRadialGradient(W / 2, cy, 0, W / 2, cy, Math.max(1, r));
+    glow.addColorStop(0, 'rgba(255,220,120,0.55)'); glow.addColorStop(1, 'rgba(255,160,40,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(W / 2, cy, Math.max(1, r), 0, Math.PI * 2); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
+    if (size > 1) goldText(go ? goldFonts.tower : goldFonts.aztec, go ? 'GO!' : String(3 - i), W / 2, cy, size);
+    ctx.restore();
+  }
+
+  function drawMegaWin() {
+    if (winner < 0 || megaT > 3.2) return;
+    const t = megaT;
+    const pop = t < 0.5 ? Math.max(0, easeOutBack(t / 0.5)) : 1;
+    const fade = t > 2.7 ? Math.max(0, 1 - (t - 2.7) / 0.5) : 1;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.translate(W / 2, SUN_Y + 40);
+    ctx.rotate(Math.sin(t * 6) * 0.035);
+    const s = pop * (1 + Math.sin(t * 11) * 0.025);
+    ctx.scale(s, s);
+    // Pink glow behind the carved gold title
+    ctx.shadowColor = '#ff2e88'; ctx.shadowBlur = 40;
+    goldText(goldFonts.aztec, 'MEGA WIN!', 0, 0, 120);
+    ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 4;
+    // Winner line in Tower Gold, shrunk if it's too long for the board
+    const line = winLine.toUpperCase();
+    const size = Math.min(88, 88 * (W - 140) / Math.max(1, goldMeasure(goldFonts.tower, line, 88)));
+    goldText(goldFonts.tower, line, 0, 80 + size * 0.75, size);
+    ctx.restore();
+  }
+
+  // ---------- Confetti ----------
+  function launchConfetti() {
+    const w = innerWidth;
+    for (let i = 0; i < 260; i++) {
+      confetti.push({
+        x: Math.random() * w, y: -20 - Math.random() * innerHeight * 0.6,
+        vx: (Math.random() - 0.5) * 120, vy: 80 + Math.random() * 200,
+        rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 10,
+        w: 6 + Math.random() * 6, h: 3 + Math.random() * 5,
+        color: PALETTE[(Math.random() * PALETTE.length) | 0], t: Math.random() * 6.28,
+      });
+    }
+  }
+  function renderConfetti(dt) {
+    const cw = innerWidth, ch = innerHeight;
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cctx.clearRect(0, 0, cw, ch);
+    if (!confetti.length) return;
+    for (const c of confetti) {
+      c.t += dt * 4;
+      c.vy += 60 * dt;
+      c.x += (c.vx + Math.sin(c.t) * 40) * dt; c.y += c.vy * dt; c.rot += c.vr * dt;
+      cctx.save();
+      cctx.translate(c.x, c.y); cctx.rotate(c.rot);
+      cctx.scale(1, Math.abs(Math.cos(c.t)));
+      cctx.fillStyle = c.color;
+      cctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+      cctx.restore();
+    }
+    confetti = confetti.filter(c => c.y < ch + 30);
+  }
+
+  // ---------- Coin pile ----------
+  // A heap of 5p stacks beside the board holding the coins still to drop. Stack slots are
+  // laid out for the full round, and coins leave from the top of the heap down.
+  const pileCanvas = $('pile'), pctx = pileCanvas.getContext('2d');
+  const PILE_SLOTS = [   // [x in coin widths, row (0 = back)], most important first
+    [-0.5, 1], [0.5, 1], [0, 0], [-1, 0], [1, 0], [-1.5, 1], [1.5, 1], [-2, 0], [2, 0],
+  ];
+  let pileCoins = [], pileKey = '', pileShown = -1, pileLifts = [], pileState = '', pileW = 0, pileH = 0, pileRx = 14;
+  // Coins in play this round: the movie round's total, or every party player's stack
+  const pileTotal = () => mode === 'party' ? Math.max(1, players.length) * partyCoins : puckTotal;
+  const pileCount = () => mode === 'party'
+    ? (state === 'setup' ? pileTotal() : state === 'running' ? partyCoinsLeft() : 0)
+    : (state === 'setup' ? puckTotal : state === 'running' ? toDrop : 0);
+
+  function layoutPile() {
+    const n = pileTotal();
+    // Use the fewest stacks that still fit the panel's height, so the heap grows into tall
+    // towers that fill the panel rather than a low spread along the bottom
+    let slots, rx, ry, caps, room;
+    for (let k = 1; k <= PILE_SLOTS.length; k++) {
+      slots = PILE_SLOTS.slice(0, k);
+      const across = Math.max(...slots.map(([x]) => Math.abs(x))) * 2 + 1;
+      rx = Math.max(8, Math.min(34, (pileW - 8) / (across * 2.15)));
+      ry = rx * 0.36;
+      // Back stacks and the middle are taller, giving a heap shape
+      const weights = slots.map(([x, row]) => (row ? 1 : 1.25) - 0.18 * Math.abs(x));
+      const wSum = weights.reduce((a, b) => a + b, 0);
+      caps = weights.map(w => Math.floor(n * w / wSum));
+      for (let left = n - caps.reduce((a, b) => a + b, 0), i = 0; left > 0; left--, i = (i + 1) % caps.length) caps[i]++;
+      room = pileH - ry * 5 - 8;
+      if (Math.max(...caps) * rx * 0.25 <= room) break;
+    }
+    pileRx = rx;
+    const gap = rx * 2.15;
+    // Coins thicken a little for small rounds so the towers still stand tall, and thin out if they'd overflow
+    const t = Math.min(rx * 0.34, room / Math.max(...caps));
+    pileCoins = [];
+    const xs = slots.map(([x]) => x), mid = (Math.min(...xs) + Math.max(...xs)) / 2;
+    slots.forEach(([sx, row], s) => {
+      const cx = pileW / 2 + (sx - mid) * gap, base = pileH - ry - 4 - (row ? 0 : ry * 2.4);
+      for (let lv = 0; lv < caps[s]; lv++) {
+        const h = Math.sin((s * 31 + lv) * 12.9898) * 43758.5453;
+        pileCoins.push({ x: cx + (h - Math.floor(h) - 0.5) * rx * 0.14, y: base - (lv + 1) * t, t, row, s, lv });
+      }
+    });
+    // Draw back to front, bottom to top; remove highest coin first
+    pileCoins.sort((a, b) => a.row - b.row || a.s - b.s || a.lv - b.lv);
+    [...pileCoins].sort((a, b) => a.y - b.y).forEach((c, i) => c.order = i);
+  }
+
+  function pileCoin(g, x, y, t, rx, alpha = 1) {
+    const ry = rx * 0.36;
+    g.globalAlpha = alpha;
+    const edge = g.createLinearGradient(x - rx, 0, x + rx, 0);
+    edge.addColorStop(0, '#5f656e'); edge.addColorStop(0.35, '#c9ced6'); edge.addColorStop(0.6, '#e9ecf0'); edge.addColorStop(1, '#6a707a');
+    g.fillStyle = edge;
+    g.beginPath();
+    g.ellipse(x, y + t, rx, ry, 0, 0, Math.PI);
+    g.lineTo(x - rx, y); g.lineTo(x + rx, y);
+    g.fill();
+    g.strokeStyle = 'rgba(40,44,52,0.45)'; g.lineWidth = 0.6;
+    g.beginPath(); g.ellipse(x, y + t, rx, ry, 0, 0, Math.PI); g.stroke();
+    const face = g.createLinearGradient(x - rx, y - ry, x + rx * 0.6, y + ry);
+    face.addColorStop(0, '#ffffff'); face.addColorStop(0.5, '#d3d8df'); face.addColorStop(1, '#9aa1ab');
+    g.fillStyle = face;
+    g.beginPath(); g.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(90,96,106,0.6)';
+    g.beginPath(); g.ellipse(x, y, rx * 0.82, ry * 0.82, 0, 0, Math.PI * 2); g.stroke();
+    g.globalAlpha = 1;
+  }
+
+  function renderPile(dt) {
+    const r = $('pileWrap').getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const key = `${r.width}x${r.height}x${dpr}x${pileTotal()}`;
+    if (key !== pileKey) {
+      pileKey = key; pileW = r.width; pileH = r.height;
+      pileCanvas.width = Math.round(pileW * dpr); pileCanvas.height = Math.round(pileH * dpr);
+      layoutPile(); pileShown = -1;
+    }
+    const count = Math.min(pileCount(), pileCoins.length), gone = pileCoins.length - count;
+    if (pileShown >= 0 && count < pileShown) {
+      // Coins taken since last frame lift off the heap and fade
+      for (const c of pileCoins) if (c.order >= pileCoins.length - pileShown && c.order < gone) pileLifts.push({ ...c, k: 0 });
+    }
+    pileLifts.forEach(l => l.k += dt / 0.35);
+    pileLifts = pileLifts.filter(l => l.k < 1);
+    if (count === pileShown && state === pileState && !pileLifts.length) return;
+    pileShown = count; pileState = state;
+
+    pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    pctx.clearRect(0, 0, pileW, pileH);
+    // Soft shadow under the heap
+    const sh = pctx.createRadialGradient(pileW / 2, pileH - pileRx * 0.6, 0, pileW / 2, pileH - pileRx * 0.6, pileW / 2);
+    sh.addColorStop(0, 'rgba(0,0,0,0.45)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+    pctx.fillStyle = sh;
+    pctx.fillRect(0, pileH - pileRx * 2, pileW, pileRx * 2);
+    for (const c of pileCoins) if (c.order >= gone) pileCoin(pctx, c.x, c.y, c.t, pileRx);
+    for (const l of pileLifts) pileCoin(pctx, l.x, l.y - l.k * 26, l.t, pileRx, 1 - l.k);
+
+    $('pileTotal').textContent = '£' + (count * 0.05).toFixed(2);
+    $('pileSub').textContent =
+      state === 'tiebreak' ? 'Sudden death: free coins!' :
+      count ? `${count} × 5p left` : 'All spent';
+  }
+
+  // ---------- Sizing ----------
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    const r = $('boardWrap').getBoundingClientRect(), stacked = innerWidth <= 860;
+    const availW = r.width - 36, availH = $('midRow').getBoundingClientRect().height - 20;   // minus the bezel
+    // Between rounds, reshape the board to the space available so it fills the middle column.
+    // Only in setup: rebuilding moves pegs and slots, which would break a round in progress.
+    if (state === 'setup' && !pucks.length) {
+      const want = stacked ? 960 : Math.round(Math.max(MIN_W, Math.min(MAX_W, H * availW / Math.max(1, availH))) / 10) * 10;
+      if (want !== W) { W = want; SPAN = W - 2 * PUCK_R; buildBoard(); }
+    }
+    const cssW = Math.max(200, stacked ? availW : Math.min(availW, availH * W / H));
+    const cssH = cssW * H / W;
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    scale = cssW / W;
+    cCanvas.width = innerWidth * dpr; cCanvas.height = innerHeight * dpr;
+    cCanvas.style.width = innerWidth + 'px'; cCanvas.style.height = innerHeight + 'px';
+    makeGradients();
+    renderBgLayer();
+  }
+
+  // ---------- UI ----------
+  function renderMovieList() {
+    const ul = $('movieList');
+    ul.innerHTML = '';
+    movies.forEach((m, i) => {
+      const li = document.createElement('li');
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.style.background = dot.style.color = PALETTE[i % PALETTE.length];
+      const name = document.createElement('span');
+      name.className = 'name'; name.textContent = m; name.title = m;
+      const x = document.createElement('button');
+      x.className = 'x'; x.textContent = '×'; x.title = 'Remove';
+      x.disabled = movies.length <= MIN_MOVIES;
+      x.onclick = () => { movies.splice(i, 1); moviesChanged(); };
+      li.append(dot, name, x);
+      ul.append(li);
+    });
+    $('movieCount').textContent = `${movies.length}/${MAX_MOVIES}`;
+  }
+
+  let lbRows = [];
+  function buildLeaderboard() {
+    const el = $('leaderboard');
+    el.innerHTML = '';
+    // Party mode always shows the four player seats, filled as people join
+    const entries = mode === 'party'
+      ? PLAYER_COLORS.map((color, i) => ({ name: playerName(i), color }))
+      : movies.map((m, i) => ({ name: m, color: PALETTE[i % PALETTE.length] }));
+    lbRows = entries.map(({ name, color }) => {
+      const row = document.createElement('div');
+      row.className = 'lb-row';
+      row.innerHTML = `<span class="lb-rank"></span><div class="lb-bar-wrap"><div class="lb-bar"></div><span class="lb-name"></span><span class="lb-count">0</span></div>`;
+      row.querySelector('.lb-bar').style.background = `linear-gradient(90deg, ${hexA(color, 0.35)}, ${color})`;
+      row.querySelector('.lb-name').textContent = name;
+      row.title = name;
+      el.append(row);
+      return row;
+    });
+    el.style.height = entries.length * 38 + 'px';
+    updateLeaderboard();
+  }
+  function updatePartyBoard() {
+    const score = i => players[i] ? players[i].score : -1;
+    const order = [0, 1, 2, 3].sort((a, b) => score(b) - score(a) || a - b);
+    const top = Math.max(0, ...players.map(p => p.score));
+    const leadersN = players.filter(p => p.score === top).length;
+    order.forEach((slot, rank) => {
+      const row = lbRows[slot], p = players[slot];
+      if (!row) return;
+      row.style.transform = `translateY(${rank * 38}px)`;
+      row.style.opacity = p ? 1 : 0.45;
+      row.querySelector('.lb-rank').textContent = p ? rank + 1 : '';
+      row.querySelector('.lb-name').textContent = !p ? `${playerName(slot)} · press ${partyKey()} to join`
+        : state === 'running' ? `${playerName(slot)} · ${p.coins} left` : `${playerName(slot)}${p.src === 'kb' ? ' (keyboard)' : ''}`;
+      row.querySelector('.lb-count').textContent = p ? money(p.score) : '';
+      row.querySelector('.lb-bar').style.width = p && top ? Math.max(0, p.score / top * 100) + '%' : '0%';
+      row.classList.toggle('lead', !!p && top > 0 && p.score === top && leadersN === 1);
+    });
+    $('topMeter').textContent = money(top);
+  }
+  function updateLeaderboard() {
+    if (mode === 'party') return updatePartyBoard();
+    const order = movies.map((_, i) => i).sort((a, b) => counts[b] - counts[a] || a - b);
+    const max = Math.max(...counts);
+    const lead = max > 0 ? leaders() : [];
+    order.forEach((idx, rank) => {
+      const row = lbRows[idx];
+      if (!row) return;
+      row.style.transform = `translateY(${rank * 38}px)`;
+      row.querySelector('.lb-rank').textContent = rank + 1;
+      row.querySelector('.lb-count').textContent = counts[idx];
+      row.querySelector('.lb-bar').style.width = max ? (counts[idx] / max * 100) + '%' : '0%';
+      row.classList.toggle('lead', lead.length === 1 && lead[0] === idx);
+    });
+    $('topMeter').textContent = max;
+  }
+
+  function updateStatus() {
+    const s = $('status');
+    if (mode === 'party') {
+      s.textContent = state === 'running' ? `${partyCoinsLeft()} coins to drop · ${activePucks()} in play`
+        : state === 'done' ? `Winner: ${winName}`
+        : players.length ? `${players.length}/${MAX_PLAYERS} players · more can join` : `Party mode: press ${partyKey()} to join`;
+      return;
+    }
+    if (state === 'running') s.textContent = `${toDrop} to drop · ${activePucks()} in play`;
+    else if (state === 'tiebreak') s.textContent = 'Sudden death: keep dropping!';
+  }
+  function updateUI() {
+    document.body.classList.toggle('party', mode === 'party');
+    $('creditLabel').textContent = mode === 'party' ? 'COINS LEFT' : 'CREDITS';
+    $('topLabel').textContent = mode === 'party' ? 'TOP SCORE' : 'TOP SLOT';
+    if (mode === 'party') return updatePartyUI();
+    const btn = $('dropBtn');
+    const [label, sub] =
+      state === 'setup' ? ['DROP', `hold${padConnected ? ' Ⓐ' : ''} for auto-drop`] :
+      state === 'running' && toDrop > 0 ? ['DROP', `${toDrop} coins left`] :
+      state === 'running' ? ['GOOD LUCK…', 'all coins dropped'] :
+      state === 'tiebreak' ? ['DROP', 'sudden death!'] :
+      ['NEW ROUND', `${puckTotal} coins`];
+    btn.querySelector('b').textContent = label;
+    btn.querySelector('small').textContent = sub;
+    // A class rather than `disabled`, so a held press still gets its pointerup
+    btn.classList.toggle('off', state === 'running' && toDrop === 0);
+    const credits = state === 'setup' || state === 'done' ? puckTotal : state === 'tiebreak' ? '∞' : toDrop;
+    $('creditMeter').textContent = $('creditTop').textContent = credits;
+    $('creditCash').textContent = state === 'tiebreak' ? 'FREE PLAY' : '£' + (credits * 0.05).toFixed(2);
+    $('muteBtn').textContent = muted ? '🔇 Sound off' : '🔊 Sound on';
+    $('modeMovies').classList.toggle('on', mode === 'movies');
+    $('modeParty').classList.toggle('on', mode === 'party');
+    const s = $('status');
+    if (state === 'setup') s.textContent = 'Watch the idol and press DROP (or Space)';
+    else if (state === 'done') s.textContent = `Winner: ${winName}`;
+    else updateStatus();
+  }
+
+  function updatePartyUI() {
+    const btn = $('dropBtn'), kb = players.find(p => p.src === 'kb');
+    const [label, sub] =
+      state === 'setup' ? (kb ? ['READY', 'waiting for players'] : ['PRESS SPACE', 'to join on the keyboard']) :
+      state === 'running' ? (kb ? ['DROP', `${kb.coins} coins left`] : ['—', 'not playing']) :
+      ['NEW ROUND', 'back to the lobby'];
+    btn.querySelector('b').textContent = label;
+    btn.querySelector('small').textContent = sub;
+    btn.classList.toggle('off', state === 'running' && (!kb || kb.coins === 0));
+    $('startBtn').classList.toggle('gone', state !== 'setup' || countdownT >= 0);
+    $('startBtn').classList.toggle('off', !players.length);
+    const credits = pileCount();
+    $('creditMeter').textContent = $('creditTop').textContent = credits;
+    $('creditCash').textContent = '£' + (credits * 0.05).toFixed(2);
+    $('muteBtn').textContent = muted ? '🔇 Sound off' : '🔊 Sound on';
+    $('modeMovies').classList.toggle('on', mode === 'movies');
+    $('modeParty').classList.toggle('on', mode === 'party');
+    updateStatus();
+  }
+
+  function showBanner(text) { const b = $('banner'); b.textContent = text; b.classList.add('show'); }
+  function hideBanner() { $('banner').classList.remove('show'); }
+
+  function moviesChanged() {
+    store.set('movies', movies);
+    resetRound();
+    buildBoard();
+    renderMovieList();
+    buildLeaderboard();
+  }
+
+  $('addForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const input = $('movieInput');
+    const name = input.value.trim().replace(/\s+/g, ' ');
+    if (!name || movies.length >= MAX_MOVIES) return;
+    movies.push(name);
+    input.value = '';
+    moviesChanged();
+  });
+  $('shuffleBtn').onclick = () => {
+    for (let i = movies.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [movies[i], movies[j]] = [movies[j], movies[i]]; }
+    moviesChanged();
+  };
+  $('defaultsBtn').onclick = () => {
+    if (!confirm('Replace the list with the default movies?')) return;
+    movies = DEFAULT_MOVIES.slice();
+    moviesChanged();
+  };
+  $('clearBtn').onclick = () => {
+    if (!confirm('Remove all movies?')) return;
+    movies = ['Movie 1', 'Movie 2'];
+    moviesChanged();
+  };
+  $('puckSlider').value = puckTotal;
+  $('puckOut').textContent = puckTotal;
+  $('puckSlider').oninput = e => {
+    puckTotal = +e.target.value;
+    $('puckOut').textContent = puckTotal;
+    store.set('pucks', puckTotal);
+    updateUI();
+  };
+  // One name box per player seat, in that seat's colour; saved as you type
+  PLAYER_COLORS.forEach((color, i) => {
+    const row = document.createElement('div');
+    row.className = 'name-row';
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.background = dot.style.color = color;
+    const input = document.createElement('input');
+    input.maxLength = 14;
+    input.placeholder = `Player ${i + 1}`;
+    input.value = playerNames[i] || '';
+    input.addEventListener('input', () => {
+      playerNames[i] = input.value;
+      store.set('playerNames', playerNames);
+      if (mode === 'party') updateLeaderboard();
+    });
+    row.append(dot, input);
+    $('nameList').append(row);
+  });
+  $('partySlider').value = partyCoins;
+  $('partyOut').textContent = partyCoins;
+  $('partySlider').oninput = e => {
+    partyCoins = +e.target.value;
+    $('partyOut').textContent = partyCoins;
+    store.set('partyCoins', partyCoins);
+    updateUI();
+  };
+  function setMode(m) {
+    if (m === mode || state === 'running' || state === 'tiebreak') return;
+    mode = m;
+    store.set('mode', mode);
+    players = [];
+    buildBoard();
+    resetRound();
+    buildLeaderboard();
+  }
+  $('modeMovies').onclick = () => setMode('movies');
+  $('modeParty').onclick = () => setMode('party');
+  // In party mode Reset also empties the lobby, so everyone joins afresh
+  $('resetBtn').onclick = () => { endHold(); if (mode === 'party') players = []; resetRound(); buildLeaderboard(); confetti = []; };
+  $('muteBtn').onclick = () => { muted = !muted; store.set('muted', muted); if (muted) stopCrowd(0.2); initAudio(); updateUI(); };
+  $('againBtn').onclick = () => { if (!againReady()) return; confetti = []; resetRound(); };
+  $('moreBtn').onclick = insertMoreCoins;
+  const settingsOpen = () => $('settings').classList.contains('show');
+  const closeSettings = () => $('settings').classList.remove('show');
+  $('settingsBtn').onclick = () => { endHold(); partyUp('kb'); $('settings').classList.add('show'); };
+  $('settingsDone').onclick = closeSettings;
+  $('settings').addEventListener('click', e => { if (e.target === $('settings')) closeSettings(); });
+  window.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSettings(); hideSplash(); } });
+  $('splash').addEventListener('pointerdown', () => { initAudio(); hideSplash(); });
+
+  // Drop presses from the mouse, the DROP button and the keyboard. In party mode they all belong
+  // to one 'kb' player; controllers are handled in pollPads.
+  const dropDown = (canJoin = true) => mode === 'party' ? partyDown('kb', canJoin) : startHold();
+  const dropUp = () => mode === 'party' ? partyUp('kb') : endHold();
+  // The DROP button and the board itself both work as press-and-hold triggers
+  for (const el of [$('dropBtn'), canvas]) {
+    el.addEventListener('pointerdown', e => {
+      if (e.button > 0) return;
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      dropDown(false);   // clicking drops for a joined keyboard player but never joins one
+    });
+    el.addEventListener('pointerup', dropUp);
+    el.addEventListener('pointercancel', dropUp);
+    el.addEventListener('lostpointercapture', dropUp);
+  }
+  $('dropBtn').addEventListener('click', e => { if (e.detail === 0) { dropDown(false); dropUp(); } });  // keyboard Enter
+  $('boostBtn').addEventListener('pointerdown', e => { e.preventDefault(); partyBoost('kb'); });
+  $('startBtn').addEventListener('click', partyStart);
+  window.addEventListener('keydown', e => {
+    if (document.activeElement.tagName === 'INPUT' || settingsOpen()) return;
+    if (mode === 'party') {
+      if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyB') && !e.repeat) partyBoost('kb');
+    }
+    if (e.code !== 'Space') return;
+    e.preventDefault();
+    if (!e.repeat) dropDown();
+  });
+  window.addEventListener('keyup', e => { if (e.code === 'Space') dropUp(); });
+  // Keyboard player's aim: hold ← / → to angle the shot
+  const keyAim = { left: 0, right: 0 };
+  window.addEventListener('keydown', e => { if (e.code === 'ArrowLeft') keyAim.left = 1; if (e.code === 'ArrowRight') keyAim.right = 1; });
+  window.addEventListener('keyup', e => { if (e.code === 'ArrowLeft') keyAim.left = 0; if (e.code === 'ArrowRight') keyAim.right = 0; });
+  window.addEventListener('blur', () => { endHold(); partyUp('kb'); });
+  // Pause the music while the tab is hidden (the frame loop that fades it stops too)
+  document.addEventListener('visibilitychange', () => {
+    if (!music) return;
+    if (document.hidden) music.pause();
+    else if (actx) startMusic();
+  });
+  window.addEventListener('resize', resize);
+  new ResizeObserver(resize).observe($('midRow'));
+
+  // ---------- Loop ----------
+  let last = performance.now(), acc = 0;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    acc += dt;
+    pollPads();
+    let steps = 0;
+    while (acc >= STEP && steps < 16) { physicsStep(STEP); acc -= STEP; steps++; }
+    if (steps === 16) acc = 0;
+    update(dt);
+    render();
+    renderPile(dt);
+    renderConfetti(dt);
+    requestAnimationFrame(frame);
+  }
+
+  buildBoard();
+  renderMovieList();
+  buildLeaderboard();
+  resize();
+  updateUI();
+  if (mode === 'party') lobbyBanner();
+  startBannerMessages();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
