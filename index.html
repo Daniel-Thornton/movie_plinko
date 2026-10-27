@@ -399,7 +399,7 @@
   .drop-btn:active, .drop-btn.held { transform: translateY(4px); box-shadow: 0 2px 0 #034a33, 0 0 0 4px #b98a1c, 0 6px 20px rgba(24, 224, 160, .5); }
   .drop-btn.off { filter: grayscale(.7) brightness(.6); cursor: default; transform: translateY(4px); animation: none; }
 
-  /* Party mode: a red boost button beside DROP, and mode-specific settings */
+  /* A red boost button beside DROP, and mode-specific settings */
   .boost-btn {
     flex: none;
     width: 92px; height: 64px;
@@ -493,26 +493,17 @@
     background: var(--fret) repeat-x center / 24px 12px;
   }
   .overlay.show .win-card { transform: scale(1) rotate(0); }
-  /* Movie poster beside the result, when one was found */
+  /* Movie poster above the result, when one was found; its width is set in JS from the image's shape */
   .win-poster { display: none; }
-  .win-card.has-poster { max-width: min(1240px, 96vw); display: grid; grid-template-columns: auto minmax(380px, 1fr); gap: 34px; align-items: center; text-align: center; padding: 30px 36px; }
-  .win-card.has-poster .win-poster { display: block; }
+  .win-card.has-poster { max-width: min(1000px, 96vw); display: grid; grid-template-columns: 1fr; gap: 14px; text-align: center; padding: 30px 36px; }
+  .win-card.has-poster .win-poster { display: block; justify-self: center; }
   .win-poster img {
-    display: block; height: min(74vh, 760px); width: auto; max-width: calc(min(1240px, 96vw) - 520px); object-fit: contain; border-radius: 12px;
+    display: block; height: auto; object-fit: contain; border-radius: 12px;
     border: 3px solid var(--gold);
     box-shadow: 0 0 0 3px #7a1050, 0 0 30px rgba(255, 204, 51, .45), 0 12px 30px rgba(0, 0, 0, .6);
-    transform: rotate(-2deg);
+    transform: rotate(-1.5deg);
   }
   .win-body { min-width: 0; }
-  /* Landscape posters (e.g. UK quads) go above the text so they don't squeeze it off the card */
-  .win-card.has-poster.wide-poster { grid-template-columns: 1fr; gap: 14px; max-width: min(1000px, 96vw); }
-  .win-card.wide-poster .win-poster { justify-self: center; }
-  .win-card.wide-poster .win-poster img { height: auto; max-width: none; transform: rotate(-1deg); }
-  @media (max-width: 860px) {
-    .win-card.has-poster { grid-template-columns: 1fr; }
-    .win-card.has-poster .win-poster { margin: 0 auto; }
-    .win-card.has-poster .win-poster img { height: 42vh; max-width: 80vw; }
-  }
   .win-card .grand {
     display: inline-block;
     padding: 4px 18px;
@@ -650,7 +641,7 @@
     <div class="deck">
       <div class="meter"><span id="creditLabel">CREDITS</span><b id="creditMeter">60</b></div>
       <button class="drop-btn" id="dropBtn" type="button"><b>DROP</b><small></small></button>
-      <button class="boost-btn party-only" id="boostBtn" type="button" title="Boost (Shift)">BOOST</button>
+      <button class="boost-btn" id="boostBtn" type="button" title="Boost (Shift)">BOOST</button>
       <button class="start-btn party-only" id="startBtn" type="button">START<br>GAME</button>
       <div class="meter"><span id="topLabel">TOP SLOT</span><b id="topMeter">0</b></div>
     </div>
@@ -701,6 +692,13 @@
       <div class="slider-row">
         <input type="range" id="partySlider" min="5" max="80" step="5" value="40">
         <output id="partyOut">40</output>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Dropper speed</h2>
+      <div class="slider-row">
+        <input type="range" id="speedSlider" min="0.25" max="1.5" step="0.05" value="1">
+        <output id="speedOut">1.00×</output>
       </div>
     </section>
   </div>
@@ -761,6 +759,7 @@
   const POT_COLORS = { '-5': '#ff3b3b', 10: '#7ee03b', 25: '#19d3e0', 50: '#ff2e88', 100: '#ffcc33' };
   const OBSTACLE_ROWS = [3, 8];            // peg rows replaced by lanes of sliding stone slabs
   const BOOST_TIME = 1, BOOST_COOLDOWN = 5, BOOST_MUL = 2.5;
+  const MOVIE_BOOST_COOLDOWN = BOOST_COOLDOWN / 2;   // no one to ram in movie mode, so it recharges faster
   // Ramming: a boosting dropper that reaches another knocks it flying the other way and scrambles its aim
   const RAM_REACH = 0.8;                   // collision distance, as a share of a party idol's width
   const RAM_KNOCK = 1900, RAM_STUN = 0.9;  // shove speed (decays fast) and seconds of wobble / aim scramble
@@ -791,7 +790,8 @@
   let state = 'setup';                   // setup | running | tiebreak | done
   let toDrop = 0, tied = [];
   let winner = -1, winPulse = 0, megaT = 99, fountainT = 0;
-  let dropperT = 0, dropperX = W / 2, dropperV = 0, dropperKick = 0;
+  let dropperBoost = 0, dropperCool = 0;   // movie-mode boost: seconds of boost left, seconds until it can be used again
+  let dropperU = 0, dropperX = W / 2, dropperV = 0, dropperKick = 0;
   let holding = false, holdTimer = 0;
   let padPrev = {}, padHolding = false, padConnected = false;
   let soundsThisFrame = 0;
@@ -799,6 +799,7 @@
   let jackpot = 8314159, jackpotShown = 0;
   let mode = store.get('mode', 'movies') === 'party' ? 'party' : 'movies';
   let partyCoins = store.get('partyCoins', 40);
+  let dropperSpeed = Math.min(1.5, Math.max(0.25, +store.get('dropperSpeed', 1) || 1));   // multiplier on the sweep speed, 0.25–1.5
   let playerNames = store.get('playerNames', ['', '', '', '']);
   if (!Array.isArray(playerNames)) playerNames = ['', '', '', ''];
   const money = n => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US');   // party scores read as cash: $1,250, -$5
@@ -1302,16 +1303,14 @@
   }
   function showPoster(title) {
     const card = $('winCard'), img = $('winPosterImg');
-    card.classList.remove('has-poster', 'wide-poster');
+    card.classList.remove('has-poster');
     img.removeAttribute('src');
     if (typeof fetch === 'undefined') return;
     findPoster(title).then(u => {
       if (!u || state !== 'done' || winName !== title) return;
       img.onload = () => {
-        const wide = img.naturalWidth > img.naturalHeight * 1.05;
-        card.classList.toggle('wide-poster', wide);
-        // As wide as fits, but no taller than half the screen (so the frame hugs the image)
-        img.style.width = wide ? `min(820px, 86vw, ${(50 * img.naturalWidth / img.naturalHeight).toFixed(1)}vh)` : '';
+        // As wide as fits, but no taller than about half the screen, so the title always fits below it
+        img.style.width = `min(820px, 86vw, ${(52 * img.naturalWidth / img.naturalHeight).toFixed(1)}vh)`;
         card.classList.add('has-poster');
       };
       img.alt = `${title} poster`;
@@ -1341,7 +1340,7 @@
     pucks = []; particles = []; rings = []; floaters = []; fountain = [];
     counts = Array(slotCount()).fill(0);
     bucketFx = counts.map(() => ({ glow: 0, bump: 0, fill: 0 }));
-    toDrop = 0; winner = -1; winBucket = -1; megaT = 99; fountainT = 0; countdownT = -1;
+    toDrop = 0; winner = -1; winBucket = -1; megaT = 99; fountainT = 0; countdownT = -1; dropperBoost = dropperCool = 0;
     againLock = 0;
     // Party players stay in the lobby for the next round; anyone new can still join
     for (const p of players) { p.coins = 0; p.score = 0; p.holding = false; }
@@ -1356,8 +1355,8 @@
   }
 
   // ---------- Party mode ----------
-  const partyDropperSpeed = () => 2 * SPAN / DROPPER_PERIOD;
-  const shotSpeed = () => partyDropperSpeed() * SHOT_MUL;
+  const partyDropperSpeed = () => 2 * SPAN / DROPPER_PERIOD * dropperSpeed;
+  const shotSpeed = () => 2 * SPAN / DROPPER_PERIOD * SHOT_MUL;   // launch speed stays put whatever the dropper speed
   const partyCoinsLeft = () => players.reduce((n, p) => n + p.coins, 0);
   const partyKey = () => padConnected ? 'Ⓐ' : 'Space';
   function lobbyBanner() {
@@ -1420,7 +1419,18 @@
     if (!p || state !== 'running' || p.cool > 0) return;
     p.boost = BOOST_TIME;
     p.cool = BOOST_COOLDOWN;
-    // A rising whoosh
+    boostWhoosh(src);
+  }
+  // Movie mode has the one dropper, so any controller or the keyboard can boost it
+  function movieBoost(src) {
+    if ((state !== 'running' && state !== 'tiebreak') || dropperCool > 0) return;
+    dropperBoost = BOOST_TIME;
+    dropperCool = MOVIE_BOOST_COOLDOWN;
+    boostWhoosh(src);
+  }
+  const boost = src => mode === 'party' ? partyBoost(src) : movieBoost(src);
+  // A rising whoosh
+  function boostWhoosh(src) {
     tone(220, 0.08, 0.25, 'sawtooth'); tone(440, 0.06, 0.3, 'sawtooth', 0.06); tone(880, 0.05, 0.3, 'triangle', 0.12);
     rumble(0.5, 0.2, 250, src);
   }
@@ -1530,11 +1540,16 @@
   // ---------- Dropper ----------
   // Sweeps at constant speed so every position along the rail is equally likely
   function moveDropper(dt) {
-    dropperT = (dropperT + dt) % DROPPER_PERIOD;
-    const u = dropperT / DROPPER_PERIOD, speed = 2 * SPAN / DROPPER_PERIOD;
+    dropperBoost = Math.max(0, dropperBoost - dt);
+    dropperCool = Math.max(0, dropperCool - dt);
+    const mul = dropperSpeed * (dropperBoost > 0 ? BOOST_MUL : 1);
+    // Tracked as a phase rather than a time so changing the speed (setting or boost) never makes the idol jump
+    dropperU = (dropperU + dt * mul / DROPPER_PERIOD) % 1;
+    const u = dropperU, speed = 2 * SPAN / DROPPER_PERIOD * mul;
     dropperX = PUCK_R + SPAN * (u < 0.5 ? u * 2 : 2 - u * 2);
     dropperV = u < 0.5 ? speed : -speed;
     dropperKick *= Math.pow(0.001, dt);
+    $('boostBtn').classList.toggle('off', (state !== 'running' && state !== 'tiebreak') || dropperCool > 0);
   }
   const canDrop = () => (state === 'running' && toDrop > 0) || state === 'tiebreak';
   function releasePuck() {
@@ -1576,7 +1591,7 @@
 
   // ---------- Controller ----------
   const PAD_DROP = [0, 5, 7], PAD_CLOSE = 1, PAD_MUTE = 8;   // A, RB, RT · B · Back/Select
-  const PAD_BOOST = [2, 4, 6];                               // X, LB, LT (party mode)
+  const PAD_BOOST = [2, 4, 6];                               // X, LB, LT
   const getPads = () => navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
   function pollPads() {
     const pads = getPads();
@@ -1597,7 +1612,7 @@
         const src = 'pad' + gp.index;
         if (isDown && !wasDown) partyDown(src);
         if (!isDown && wasDown) partyUp(src);
-        if (PAD_BOOST.some(pressed)) partyBoost(src);
+        if (PAD_BOOST.some(pressed)) boost(src);
         // Aim: whichever stick is pushed further sets the shooter's angle; centred = straight down
         const pl = players.find(q => q.src === src);
         if (pl) {
@@ -1611,7 +1626,10 @@
             else if (sx !== 0) pl.aimTarget = Math.sign(sx) * MAX_AIM;
           } else pl.aimTarget = 0;
         }
-      } else if (isDown) drop = true;
+      } else {
+        if (isDown) drop = true;
+        if (PAD_BOOST.some(pressed)) boost('pad' + gp.index);
+      }
       if (pressed(PAD_CLOSE)) {
         if (settingsOpen()) closeSettings();
         else if (state === 'done' && $('overlay').classList.contains('show')) insertMoreCoins();
@@ -2053,7 +2071,7 @@
       ctx.font = `14px ${HEADING}`;
       ctx.fillText(mode === 'party'
         ? `JOIN: ${padConnected ? 'Ⓐ ON EACH CONTROLLER, ' : ''}SPACE FOR KEYBOARD  ·  FIRE: Ⓐ / SPACE  ·  AIM: STICK / ← →  ·  BOOST: Ⓧ / SHIFT`
-        : `${padConnected ? 'PRESS DROP, SPACE OR Ⓐ' : 'PRESS DROP OR SPACE'}  ·  HOLD TO KEEP DROPPING`, W / 2, TOP_H - 16);
+        : `${padConnected ? 'PRESS DROP, SPACE OR Ⓐ' : 'PRESS DROP OR SPACE'}  ·  HOLD TO KEEP DROPPING  ·  BOOST: ${padConnected ? 'Ⓧ / ' : ''}SHIFT`, W / 2, TOP_H - 16);
     }
     drawDropper();
     drawBuckets();
@@ -2173,7 +2191,7 @@
                    color: p.color, label: playerName(p.slot), boost: p.boost, s: PARTY_IDOL, aim: p.aim, stun: p.stun });
       }
     } else {
-      drawIdol({ x: dropperX, v: dropperV, kick: dropperKick, live: canDrop() || state === 'setup', s: 1 });
+      drawIdol({ x: dropperX, v: dropperV, kick: dropperKick, live: canDrop() || state === 'setup', boost: dropperBoost, s: 1 });
     }
   }
   // Each party player's idol is the mask recoloured in their colour. 'color' blending keeps the mask's
@@ -2232,8 +2250,8 @@
     if (idolImg && idolImg.complete && idolImg.naturalWidth) {
       const ih = IDOL_H * s, iw = ih * idolImg.naturalWidth / idolImg.naturalHeight;
       // Boost: speed streaks trailing behind
-      if (color && boost > 0) {
-        ctx.strokeStyle = hexA(color, 0.7 * boost);
+      if (boost > 0) {
+        ctx.strokeStyle = hexA(color || '#ffcc33', 0.7 * boost);
         ctx.lineWidth = 3;
         for (let i = 0; i < 5; i++) {
           const y = IDOL_TOP + ih * (0.25 + i * 0.13), len = 40 + 30 * Math.sin(clock * 30 + i);
@@ -3019,6 +3037,14 @@
     store.set('partyCoins', partyCoins);
     updateUI();
   };
+  const showSpeed = () => { $('speedOut').textContent = dropperSpeed.toFixed(2) + '×'; };
+  $('speedSlider').value = dropperSpeed;
+  showSpeed();
+  $('speedSlider').oninput = e => {
+    dropperSpeed = +e.target.value;
+    showSpeed();
+    store.set('dropperSpeed', dropperSpeed);
+  };
   function setMode(m) {
     if (m === mode || state === 'running' || state === 'tiebreak') return;
     mode = m;
@@ -3060,13 +3086,11 @@
     el.addEventListener('lostpointercapture', dropUp);
   }
   $('dropBtn').addEventListener('click', e => { if (e.detail === 0) { dropDown(false); dropUp(); } });  // keyboard Enter
-  $('boostBtn').addEventListener('pointerdown', e => { e.preventDefault(); partyBoost('kb'); });
+  $('boostBtn').addEventListener('pointerdown', e => { e.preventDefault(); boost('kb'); });
   $('startBtn').addEventListener('click', partyStart);
   window.addEventListener('keydown', e => {
     if (document.activeElement.tagName === 'INPUT' || settingsOpen()) return;
-    if (mode === 'party') {
-      if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyB') && !e.repeat) partyBoost('kb');
-    }
+    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'KeyB') && !e.repeat) boost('kb');
     if (e.code !== 'Space') return;
     e.preventDefault();
     if (!e.repeat) dropDown();
