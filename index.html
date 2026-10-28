@@ -322,6 +322,7 @@
   }
   .banner {
     position: absolute;
+    z-index: 5;   /* in front of the sculptures' fire */
     top: 30px;
     left: 50%;
     transform: translate(-50%, -20px) scale(.9);
@@ -541,6 +542,18 @@
 
   #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 6; }
 
+  /* Serpent-head sculptures on the bottom corners of the bezel. JS nods them up and down, lights
+     their glow when the chanting starts, and has them breathe fire (drawn on #fire) once the round is won. */
+  .sculpt { position: absolute; bottom: -93px; width: 180px; aspect-ratio: 584 / 568; pointer-events: none; z-index: 4; }
+  .sculpt.left { left: -99px; }
+  .sculpt.right { right: -99px; }
+  .sculpt .head { position: absolute; inset: 0; filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .6)); }
+  .sculpt img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .sculpt .glow { opacity: 0; transition: opacity 1.6s ease-in-out; }
+  .sculpt.lit .glow { opacity: 1; }
+  #fire { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
+  #boardText { position: absolute; top: 10px; left: 18px; pointer-events: none; z-index: 5; }   /* over #board, inside the bezel's padding */
+
   /* ---------- Settings modal ---------- */
   .settings-card {
     width: min(440px, 100%);
@@ -626,7 +639,10 @@
       </div>
 
       <div class="board-wrap" id="boardWrap">
-        <div class="frame"><canvas id="board"></canvas></div>
+        <div class="frame"><canvas id="board"></canvas><canvas id="boardText"></canvas>
+          <div class="sculpt left"><div class="head"><img src="images/aztec_sculpture_base.png" alt=""><img class="glow" src="images/aztec_sculpture_glow.png" alt=""></div></div>
+          <div class="sculpt right"><div class="head"><img src="images/aztec_sculpture_base.png" alt=""><img class="glow" src="images/aztec_sculpture_glow.png" alt=""></div></div>
+        </div>
         <div class="banner" id="banner"></div>
       </div>
 
@@ -717,10 +733,12 @@
       <button class="btn" id="againBtn">Ⓐ Play Again</button>
       <button class="btn" id="moreBtn">Ⓑ Insert More Coins</button>
     </div>
-    <div class="pad-badge" id="winPadHint" hidden>🎮 Ⓐ play again · Ⓑ insert more coins</div>
+    <div class="row2"><button class="btn" id="switchBtn"></button></div>
+    <div class="pad-badge" id="winPadHint" hidden>🎮 Ⓐ play again · Ⓑ insert more coins · Ⓨ switch game mode</div>
     </div>
   </div>
 </div>
+<canvas id="fire"></canvas>
 <canvas id="confetti"></canvas>
 <div class="splash show" id="splash">
   <img src="images/AztecTower_Banner_2000x1000.jpg" alt="Aztec Tower">
@@ -812,7 +830,11 @@
 
   // ---------- DOM ----------
   const $ = id => document.getElementById(id);
-  const canvas = $('board'), ctx = canvas.getContext('2d');
+  const canvas = $('board'), boardCtx = canvas.getContext('2d');
+  // Text (slot labels and counters, score pop-ups, MEGA WIN) goes on a see-through canvas laid over the board,
+  // so it stays in front of the sculptures' fire. Drawing code swaps ctx over to it for those parts.
+  const tCanvas = $('boardText'), textCtx = tCanvas.getContext('2d');
+  let ctx = boardCtx;
   const cCanvas = $('confetti'), cctx = cCanvas.getContext('2d');
   let scale = 1, dpr = 1;
 
@@ -1094,12 +1116,15 @@
     }
     return false;
   }
-  // The win: a reward jingle and a big jackpot coin pour (both peak near full scale, so set below 1)
-  let rewardClip = null, jackpotClip = null;
+  // The win: a reward jingle layered with a jangle of keys, a big jackpot coin pour (all peak near full scale,
+  // so set below 1), and the corner sculptures' fire breath
+  let rewardClip = null, keysClip = null, jackpotClip = null, fireClip = null;
   function loadReward() {
     if (rewardClip || !actx) return;
     rewardClip = loadClip('audio/656643__ienba__game-reward.wav');
+    keysClip = loadClip('audio/614265__jocamarino__grab-keys.wav');
     jackpotClip = loadClip('audio/496772__robinhood76__08173-big-jackpot-coins.wav');
+    fireClip = loadClip('audio/157616__bspiller5__fire-breath.wav');
   }
   function fanfare() {
     if (!actx || muted) return;
@@ -1109,6 +1134,8 @@
       [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach(f => tone(f, 0.09, 1.6, 'sine', 0.48));
     }
     // Payout tray: the jackpot coin pour, or a cascade built from single coin clips until it's loaded
+    playClip(keysClip, 0.8);
+    playClip(fireClip, 0.8);
     if (!playClip(jackpotClip, 0.7, 0.25)) for (let i = 0; i < 22; i++) coinClip(0.3 + i * 0.075 + Math.random() * 0.04, 0.75);
   }
 
@@ -1590,7 +1617,7 @@
   }
 
   // ---------- Controller ----------
-  const PAD_DROP = [0, 5, 7], PAD_CLOSE = 1, PAD_MUTE = 8;   // A, RB, RT · B · Back/Select
+  const PAD_DROP = [0, 5, 7], PAD_CLOSE = 1, PAD_SWITCH = 3, PAD_MUTE = 8;   // A, RB, RT · B · Y · Back/Select
   const PAD_BOOST = [2, 4, 6];                               // X, LB, LT
   const getPads = () => navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
   function pollPads() {
@@ -1634,6 +1661,7 @@
         if (settingsOpen()) closeSettings();
         else if (state === 'done' && $('overlay').classList.contains('show')) insertMoreCoins();
       }
+      if (pressed(PAD_SWITCH) && state === 'done' && $('overlay').classList.contains('show')) switchMode();
       if (pressed(PAD_MUTE)) $('muteBtn').click();
       padPrev[gp.index] = gp.buttons.map((_, i) => down(i));
     }
@@ -1714,7 +1742,8 @@
   const againReady = () => againLock <= 0;
   function refreshAgain() {
     const locked = !againReady(), n = locked && againLock !== Infinity ? ` (${Math.ceil(againLock)})` : '';
-    for (const [id, label] of [['againBtn', 'Ⓐ Play Again'], ['moreBtn', 'Ⓑ Insert More Coins']]) {
+    const other = mode === 'party' ? '🎬 Movie Pick' : '🎮 Party Mode';
+    for (const [id, label] of [['againBtn', 'Ⓐ Play Again'], ['moreBtn', 'Ⓑ Insert More Coins'], ['switchBtn', `Ⓨ Switch to ${other}`]]) {
       const btn = $(id);
       btn.disabled = locked;
       btn.classList.toggle('waiting', locked);
@@ -2042,6 +2071,8 @@
 
   function render() {
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+    textCtx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
+    textCtx.clearRect(0, 0, W, H);
 
     // Night-sky fallback until the jungle art has loaded
     const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -2128,7 +2159,9 @@
     }
     ctx.globalCompositeOperation = 'source-over';
 
+    ctx = textCtx;
     drawFloaters();
+    ctx = boardCtx;
     for (const f of fountain) {
       ctx.save();
       ctx.translate(f.x, f.y);
@@ -2136,7 +2169,9 @@
       drawCoin(0, 0, f.rot, f.s);
       ctx.restore();
     }
+    ctx = textCtx;
     drawMegaWin();
+    ctx = boardCtx;
     drawCountdown();
   }
 
@@ -2223,7 +2258,6 @@
   function drawIdol({ x, v, kick: k, live, color = null, label = '', boost = 0, s, aim = null, stun = 0 }) {
     const spawnY = IDOL_TOP + IDOL_H * s * IDOL_MOUTH[1];
     const bob = -k * 9 * s;
-    let coinX = x, coinY = spawnY + bob;
     if (aim === null) {
       ctx.strokeStyle = color ? hexA(color, live ? 0.35 : 0.1) : `rgba(255,213,107,${live ? 0.22 : 0.07})`;
       ctx.lineWidth = 1;
@@ -2234,7 +2268,6 @@
       // Shooter: a straight dotted ray along the aim, showing the intended direction (not the dropper's
       // drift or gravity), out to the first peg row or a fixed length when aimed nearly flat
       const [mx, my] = shooterMouth(x);
-      coinX = mx; coinY = my + bob;
       const dx = Math.sin(aim), dy = Math.cos(aim);
       ctx.fillStyle = hexA(color, live ? 0.75 : 0.15);
       for (let d = 14; d < 340; d += 13) {
@@ -2309,14 +2342,6 @@
         ctx.fillStyle = color;
         ctx.fillText(label, lx, ly);
       }
-    }
-
-    // The next coin waits in its mouth
-    if (live) {
-      ctx.globalAlpha = 1 - Math.min(1, k * 1.4);
-      drawCoin(coinX, coinY, 0, 1.1 * Math.max(0.85, s));
-      if (color) drawCoinRing(coinX, coinY, color, 1.1 * Math.max(0.85, s));
-      ctx.globalAlpha = 1;
     }
   }
   function drawCoinRing(x, y, color, s = 1) {
@@ -2412,6 +2437,9 @@
         ctx.globalCompositeOperation = 'source-over';
       }
 
+      // Counter and label go on the text layer; slots out of a tie-break are dimmed there to match
+      ctx = textCtx;
+      if (state === 'tiebreak' && !tied.includes(i)) ctx.globalAlpha = 0.35;
       // Counter: a carved stone tablet with the count in Tower Gold, glowing in the slot's colour
       const mw = Math.min(sw - 8, 84 + bw * 0.18), mh = Math.min(62, 42 + bw * 0.06), my = BUCKET_TOP + 4;
       drawStoneFrame(cx - mw / 2, my, mw, mh, Math.min(10, mh * 0.2));
@@ -2454,6 +2482,8 @@
         ctx.restore();
       }
       ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+      ctx = boardCtx;
 
       if (state === 'tiebreak' && !tied.includes(i)) {
         ctx.fillStyle = 'rgba(6,2,12,0.65)';
@@ -2808,8 +2838,84 @@
   }
 
   // ---------- Sizing ----------
+  // ---------- Corner sculptures ----------
+  // Nod up and down, light up while the crowd chants (the last coins), and breathe fire once the round is won.
+  // The fire sheet is a 2×2 grid of puffs; each particle draws one cell, cycling through them as it burns out.
+  const fCanvas = $('fire'), fctx = fCanvas.getContext('2d');
+  const fireSheet = new Image();
+  fireSheet.src = 'images/fire_spritesheet.png';
+  const FIRE_CELL = 292;   // the sheet is 584×584 → four 292px cells
+  const SCULPT_MOUTH = [(490 - 292) / 584, (440 - 284) / 568];   // mouth, from the image centre, as a fraction of its size
+  const sculpts = [...document.querySelectorAll('.sculpt')].map((el, i) => ({ el, head: el.querySelector('.head'), side: i ? -1 : 1, phase: i * 1.7, litT: 0, burnT: 0, pop: 0 }));
+  let flames = [], sculptT = 0;
+  function chanting() {
+    if (state === 'tiebreak' || state === 'done') return true;
+    if (state !== 'running') return false;
+    return mode === 'party'
+      ? partyCoinsLeft() <= Math.max(2, Math.round(players.length * partyCoins * 0.15))
+      : toDrop <= Math.max(2, Math.round(puckTotal * 0.15));
+  }
+  function renderSculptures(dt) {
+    sculptT += dt;
+    const lit = chanting(), burning = state === 'done';
+    for (const s of sculpts) {
+      s.el.classList.toggle('lit', lit);
+      // Time spent glowing drives the build-up: they swell (up to 1.4×) and shake harder the longer the chant goes on,
+      // then ease back down once it's over
+      s.litT = lit ? s.litT + dt : Math.max(0, s.litT - dt * 6);
+      // On the win they pop up to a further 1.6× on a springy overshoot (peaking near 1.75× before settling),
+      // and sink back once the next round starts
+      if (burning) { s.burnT += dt; s.pop = 1 - Math.exp(-5 * s.burnT) * Math.cos(11 * s.burnT); }
+      else { s.burnT = 0; s.pop = Math.max(0, s.pop - dt * 2); }
+      const build = 1 - Math.exp(-s.litT / 8), grow = (1 + 0.4 * build) * (1 + 0.6 * s.pop);
+      // Head angle in degrees: negative looks up. Calm nodding; chin raised while glowing; head thrown back while spraying fire.
+      const calm = -6 + 11 * Math.sin(sculptT * 0.9 + s.phase);
+      const ang = burning ? -34 + 16 * Math.sin(sculptT * 3.1 + s.phase) + 7 * Math.sin(sculptT * 7.3 + s.phase)
+        : calm + (-16 - calm) * Math.min(1, s.litT / 1.5);
+      const amp = burning ? 5 : s.litT > 0 ? 1 + 3 * build : 0;
+      const jx = (Math.random() - 0.5) * 2 * amp, jy = (Math.random() - 0.5) * 2 * amp, jr = (Math.random() - 0.5) * amp;
+      s.head.style.translate = `${jx}px ${jy}px`;
+      s.head.style.rotate = (ang * s.side + jr) + 'deg';
+      s.head.style.scale = `${grow * s.side} ${grow}`;   // the right head is mirrored to face inward
+      if (!burning || !fireSheet.complete) continue;
+      const r = s.el.getBoundingClientRect(), a = ang * Math.PI / 180;
+      const ox = SCULPT_MOUTH[0] * r.width * grow, oy = SCULPT_MOUTH[1] * r.height * grow;
+      const mx = r.left + r.width / 2 + jx + s.side * (ox * Math.cos(a) - oy * Math.sin(a));
+      const my = r.top + r.height / 2 + jy + ox * Math.sin(a) + oy * Math.cos(a);
+      const n = Math.floor(130 * dt + Math.random());   // ~130 puffs a second, sprayed wide
+      for (let i = 0; i < n; i++) {
+        const dir = a - 0.35 + (Math.random() - 0.5) * 1.1, sp = 750 + Math.random() * 750;
+        flames.push({
+          x: mx, y: my, vx: s.side * Math.cos(dir) * sp, vy: Math.sin(dir) * sp,
+          t: 0, life: 1 + Math.random() * 0.6, cell: Math.floor(Math.random() * 4),
+          rot: Math.random() * Math.PI * 2, vr: (Math.random() - 0.5) * 4, size: r.width * grow * (0.3 + Math.random() * 0.15),
+        });
+      }
+    }
+
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fctx.clearRect(0, 0, innerWidth, innerHeight);
+    if (!flames.length) return;
+    fctx.globalCompositeOperation = 'lighter';
+    for (const f of flames) {
+      f.t += dt;
+      f.vx *= Math.pow(0.5, dt); f.vy = f.vy * Math.pow(0.5, dt) - 260 * dt;   // slows and rises as it burns
+      f.x += f.vx * dt; f.y += f.vy * dt; f.rot += f.vr * dt;
+      const k = f.t / f.life, sz = f.size * (0.4 + 1.6 * k);
+      const cell = (f.cell + Math.floor(k * 4)) % 4;
+      fctx.globalAlpha = Math.max(0, Math.min(1, k * 8) * (1 - k));
+      fctx.save();
+      fctx.translate(f.x, f.y); fctx.rotate(f.rot);
+      fctx.drawImage(fireSheet, (cell % 2) * FIRE_CELL, (cell >> 1) * FIRE_CELL, FIRE_CELL, FIRE_CELL, -sz / 2, -sz / 2, sz, sz);
+      fctx.restore();
+    }
+    fctx.globalAlpha = 1;
+    fctx.globalCompositeOperation = 'source-over';
+    flames = flames.filter(f => f.t < f.life);
+  }
+
   function resize() {
-    dpr = Math.min(2, window.devicePixelRatio || 1);
+    dpr =Math.min(2, window.devicePixelRatio || 1);
     const r = $('boardWrap').getBoundingClientRect(), stacked = innerWidth <= 860;
     const availW = r.width - 36, availH = $('midRow').getBoundingClientRect().height - 20;   // minus the bezel
     // Between rounds, reshape the board to the space available so it fills the middle column.
@@ -2824,9 +2930,13 @@
     canvas.style.height = cssH + 'px';
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
+    tCanvas.style.width = cssW + 'px'; tCanvas.style.height = cssH + 'px';
+    tCanvas.width = canvas.width; tCanvas.height = canvas.height;
     scale = cssW / W;
     cCanvas.width = innerWidth * dpr; cCanvas.height = innerHeight * dpr;
     cCanvas.style.width = innerWidth + 'px'; cCanvas.style.height = innerHeight + 'px';
+    fCanvas.width = innerWidth * dpr; fCanvas.height = innerHeight * dpr;
+    fCanvas.style.width = innerWidth + 'px'; fCanvas.style.height = innerHeight + 'px';
     makeGradients();
     renderBgLayer();
   }
@@ -3061,6 +3171,13 @@
   $('muteBtn').onclick = () => { muted = !muted; store.set('muted', muted); if (muted) stopCrowd(0.2); initAudio(); updateUI(); };
   $('againBtn').onclick = () => { if (!againReady()) return; confetti = []; resetRound(); };
   $('moreBtn').onclick = insertMoreCoins;
+  // From the win card: start a fresh round in the other game mode
+  function switchMode() {
+    if (state !== 'done' || !againReady()) return;
+    confetti = [];
+    setMode(mode === 'party' ? 'movies' : 'party');
+  }
+  $('switchBtn').onclick = switchMode;
   const settingsOpen = () => $('settings').classList.contains('show');
   const closeSettings = () => $('settings').classList.remove('show');
   $('settingsBtn').onclick = () => { endHold(); partyUp('kb'); $('settings').classList.add('show'); };
@@ -3124,6 +3241,7 @@
     render();
     renderPile(dt);
     renderConfetti(dt);
+    renderSculptures(dt);
     requestAnimationFrame(frame);
   }
 
