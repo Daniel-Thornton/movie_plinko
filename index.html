@@ -685,7 +685,7 @@
         <button class="btn mode-btn" id="modeMovies" type="button">🎬 Movie pick</button>
         <button class="btn mode-btn" id="modeParty" type="button">🎮 Party · 1–8</button>
       </div>
-      <p class="mode-note party-only">Up to 8 players. Each controller is a player (press Ⓐ to join), and the keyboard seats two more: Space fires, ← → aim, Shift boosts (the mouse fires for this one too); W fires, A D aim, S boosts. The stick aims, Ⓧ boosts. Click START GAME once everyone's in. Highest score wins.</p>
+      <p class="mode-note party-only">Up to 8 players. Each controller is a player (press Ⓐ to join), and the keyboard seats two more: Space fires, ← → aim (add ↓ for a diagonal), Shift boosts (the mouse fires for this one too); W fires, A D aim (add S for a diagonal), Q boosts. The stick aims, Ⓧ boosts. Click START GAME once everyone's in. Highest score wins.</p>
     </section>
     <section class="card movies-only">
       <h2>Offerings <small id="movieCount"></small></h2>
@@ -914,24 +914,51 @@
     if (music && !muted && !document.hidden && music.paused) music.play().catch(() => {});
   }
   // Fades toward the target each frame: silent when muted, ducked under the MEGA WIN fanfare
-  // Sudden death muffles it, as if heard through a wall: the <audio> element is routed through a low-pass filter.
-  // Under file:// the browser won't let Web Audio read the element (it would go silent), so there it just ducks lower.
-  let musicFilter = null;
-  const MUSIC_OPEN = 20000, MUSIC_MUFFLED = 350;   // filter cutoff in Hz
+  // Sudden death muffles the music and the crowd's chanting, as if heard through a temple wall, and swells
+  // a cavernous reverb under them. Each runs through a low-pass filter that also feeds a shared reverb.
+  // Under file:// the browser won't let Web Audio read the music's <audio> element (it would go silent),
+  // and the crowd falls back to <audio> elements too, so there the music just ducks lower.
+  let musicFilter = null, crowdFilter = null, reverb = null, reverbWet = null;
+  const MUFFLE_OPEN = 20000, MUFFLE_SHUT = 350;   // filter cutoff in Hz
+  const REVERB_WET = 0.9;
+  // Reverb: a convolver fed a few seconds of decaying stereo noise, which sounds like a big stone room
+  function makeReverb() {
+    const len = Math.round(actx.sampleRate * 3.2), ir = actx.createBuffer(2, len, actx.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = ir.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    }
+    reverb = actx.createConvolver();
+    reverb.buffer = ir;
+    reverbWet = actx.createGain();
+    reverbWet.gain.value = 0;
+    reverb.connect(reverbWet);
+    reverbWet.connect(master);
+  }
+  // A low-pass filter on its way to `out`, also sending into the reverb
+  function muffler(out) {
+    const f = actx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = MUFFLE_OPEN;
+    f.connect(out);
+    f.connect(reverb);
+    return f;
+  }
   function routeMusic() {
     if (!music || !actx || musicFilter || location.protocol === 'file:') return;
     try {
-      musicFilter = actx.createBiquadFilter();
-      musicFilter.type = 'lowpass';
-      musicFilter.frequency.value = MUSIC_OPEN;
+      musicFilter = muffler(actx.destination);   // not through master: the element's own volume already sets the level
       actx.createMediaElementSource(music).connect(musicFilter);
-      musicFilter.connect(actx.destination);   // not through master: the element's own volume already sets the level
     } catch { musicFilter = null; }
   }
   function updateMusic(dt) {
     if (!music) return;
     const muffled = state === 'tiebreak';
-    if (musicFilter) musicFilter.frequency.setTargetAtTime(muffled ? MUSIC_MUFFLED : MUSIC_OPEN, actx.currentTime, 0.25);
+    if (actx && reverb) {
+      const t = actx.currentTime, cut = muffled ? MUFFLE_SHUT : MUFFLE_OPEN;
+      for (const f of [musicFilter, crowdFilter]) if (f) f.frequency.setTargetAtTime(cut, t, 0.25);
+      reverbWet.gain.setTargetAtTime(muffled ? REVERB_WET : 0, t, 0.4);
+    }
     const target = muted ? 0 : winner >= 0 && megaT < 3 ? MUSIC_VOL * 0.3 : muffled && !musicFilter ? MUSIC_VOL * 0.3
       : crowdOn ? MUSIC_VOL * 0.6 : MUSIC_VOL;
     music.volume = Math.max(0, Math.min(1, music.volume + (target - music.volume) * Math.min(1, dt * 3)));
@@ -947,14 +974,24 @@
       master = actx.createGain();
       master.gain.value = 0.45;
       master.connect(comp); comp.connect(actx.destination);
+      makeReverb();
       crowdGain = actx.createGain();
-      crowdGain.connect(master);
+      crowdFilter = muffler(master);
+      crowdGain.connect(crowdFilter);
       loadCoins();
       loadCrowd();
       loadReward();
       routeMusic();
+      uiClip = loadClip('audio/270401__littlerobotsoundfactory__menu_select_00.wav');
     } catch { actx = null; }
   }
+  // A click for the menu buttons (Reset, Settings, the win card…), not DROP or BOOST
+  let uiClip = null;
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.btn')) return;
+    initAudio();
+    if (!muted) playClip(uiClip, 0.6);
+  });
   function tone(freq, vol, dur, type = 'triangle', when = 0) {
     if (!actx || muted) return;
     const t = actx.currentTime + when;
@@ -977,7 +1014,7 @@
   }
   // Coin clips for pucks landing in a slot. Decoded into Web Audio when fetch works (served
   // over http); when opened from file:// fetch is blocked, so fall back to <audio> elements.
-  const COIN_URLS = Array.from({ length: 16 }, (_, i) => `audio/coins/coin_${String(i + 1).padStart(2, '0')}.wav`);
+  const COIN_URLS = Array.from({ length: 15 }, (_, i) => `audio/coins/coin_${String(i + 2).padStart(2, '0')}.wav`);   // coin_02–16 (01 wasn't a coin sound)
   let coinBufs = null, coinEls = null, lastCoin = -1;
   function loadCoins() {
     if (coinBufs || coinEls || !actx) return;
@@ -1565,7 +1602,7 @@
       // Aim follows the stick almost directly; a touch of smoothing just hides stick jitter.
       // While stunned from a ram, the aim is thrown about instead.
       const ka = keyAims[p.src];
-      if (ka) p.aimTarget = (ka.right - ka.left) * MAX_AIM * 0.85;
+      if (ka) p.aimTarget = (ka.right - ka.left) * MAX_AIM * (ka.down ? 0.5 : 1);   // holding down as well makes it a 45° diagonal
       const target = p.stun > 0 ? p.aimTarget + Math.sin(clock * 23 + p.slot) * 1.1 * Math.min(1, p.stun * 2) : p.aimTarget;
       p.aim = Math.max(-MAX_AIM, Math.min(MAX_AIM, p.aim + (target - p.aim) * Math.min(1, dt * 25)));
       if (p.holding) {
@@ -3328,15 +3365,18 @@
   });
   window.addEventListener('keyup', e => { if (e.code === 'Space') dropUp(); });
   // Keyboard players' aim: hold ← / → (or A / D for the second seat) to angle the shot
-  const keyAims = { kb: { left: 0, right: 0 }, kb2: { left: 0, right: 0 } };
-  const AIM_KEYS = { ArrowLeft: ['kb', 'left'], ArrowRight: ['kb', 'right'], KeyA: ['kb2', 'left'], KeyD: ['kb2', 'right'] };
+  const keyAims = { kb: { left: 0, right: 0, down: 0 }, kb2: { left: 0, right: 0, down: 0 } };
+  const AIM_KEYS = {
+    ArrowLeft: ['kb', 'left'], ArrowRight: ['kb', 'right'], ArrowDown: ['kb', 'down'],
+    KeyA: ['kb2', 'left'], KeyD: ['kb2', 'right'], KeyS: ['kb2', 'down'],
+  };
   window.addEventListener('keydown', e => { const k = AIM_KEYS[e.code]; if (k) keyAims[k[0]][k[1]] = 1; });
   window.addEventListener('keyup', e => { const k = AIM_KEYS[e.code]; if (k) keyAims[k[0]][k[1]] = 0; });
-  // Second keyboard seat, party mode only: W fires (and joins), S boosts
+  // Second keyboard seat, party mode only: W fires (and joins), Q boosts
   window.addEventListener('keydown', e => {
     if (mode !== 'party' || e.repeat || document.activeElement.tagName === 'INPUT' || settingsOpen()) return;
     if (e.code === 'KeyW') partyDown('kb2');
-    if (e.code === 'KeyS') boost('kb2');
+    if (e.code === 'KeyQ') boost('kb2');
   });
   window.addEventListener('keyup', e => { if (e.code === 'KeyW' && mode === 'party') partyUp('kb2'); });
   window.addEventListener('blur', () => { endHold(); partyUp('kb'); partyUp('kb2'); });
