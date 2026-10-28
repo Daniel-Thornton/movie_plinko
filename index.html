@@ -552,6 +552,14 @@
   .sculpt .glow { opacity: 0; transition: opacity 1.6s ease-in-out; }
   .sculpt.lit .glow { opacity: 1; }
   #fire { position: fixed; inset: 0; pointer-events: none; z-index: 4; }
+  /* Sudden death: a huge shadow around the bezel blacks out the rest of the screen,
+     leaving the board and the sculptures (which sit above it) in the light */
+  .spotlight {
+    position: absolute; inset: 0; border-radius: 18px; pointer-events: none; z-index: 3;
+    box-shadow: 0 0 0 200vmax rgba(0, 0, 0, .85);
+    opacity: 0; transition: opacity .9s;
+  }
+  .spotlight.on { opacity: 1; }
   #boardText { position: absolute; top: 10px; left: 18px; pointer-events: none; z-index: 5; }   /* over #board, inside the bezel's padding */
 
   /* ---------- Settings modal ---------- */
@@ -631,6 +639,7 @@
           </div>
           <div class="row2">
             <button class="btn" id="settingsBtn">⚙ Settings</button>
+            <button class="btn" id="modeSwitchBtn" type="button" title="Switch game mode (starts a fresh board)"></button>
           </div>
           <div class="status" id="status"></div>
           <div class="pad-badge" id="padBadge" hidden>🎮 Controller: Ⓐ / RT drop · Ⓑ close · Back sound</div>
@@ -639,7 +648,7 @@
       </div>
 
       <div class="board-wrap" id="boardWrap">
-        <div class="frame"><canvas id="board"></canvas><canvas id="boardText"></canvas>
+        <div class="frame"><div class="spotlight" id="spotlight"></div><canvas id="board"></canvas><canvas id="boardText"></canvas>
           <div class="sculpt left"><div class="head"><img src="images/aztec_sculpture_base.png" alt=""><img class="glow" src="images/aztec_sculpture_glow.png" alt=""></div></div>
           <div class="sculpt right"><div class="head"><img src="images/aztec_sculpture_base.png" alt=""><img class="glow" src="images/aztec_sculpture_glow.png" alt=""></div></div>
         </div>
@@ -674,9 +683,9 @@
       <h2>Game mode</h2>
       <div class="row2">
         <button class="btn mode-btn" id="modeMovies" type="button">🎬 Movie pick</button>
-        <button class="btn mode-btn" id="modeParty" type="button">🎮 Party · 1–4</button>
+        <button class="btn mode-btn" id="modeParty" type="button">🎮 Party · 1–8</button>
       </div>
-      <p class="mode-note party-only">Each controller is a player (press Ⓐ to join); the keyboard and mouse make one more. Ⓐ / Space fires a coin, the stick (or ← →) aims the shot, Ⓧ / Shift boosts the dropper. Click START GAME once everyone's in. Highest score wins.</p>
+      <p class="mode-note party-only">Up to 8 players. Each controller is a player (press Ⓐ to join), and the keyboard seats two more: Space fires, ← → aim, Shift boosts (the mouse fires for this one too); W fires, A D aim, S boosts. The stick aims, Ⓧ boosts. Click START GAME once everyone's in. Highest score wins.</p>
     </section>
     <section class="card movies-only">
       <h2>Offerings <small id="movieCount"></small></h2>
@@ -731,10 +740,10 @@
     <div class="sub" id="winSub"></div>
     <div class="row2">
       <button class="btn" id="againBtn">Ⓐ Play Again</button>
-      <button class="btn" id="moreBtn">Ⓑ Insert More Coins</button>
+      <button class="btn" id="moreBtn">Ⓑ Keep playing!!!</button>
     </div>
     <div class="row2"><button class="btn" id="switchBtn"></button></div>
-    <div class="pad-badge" id="winPadHint" hidden>🎮 Ⓐ play again · Ⓑ insert more coins · Ⓨ switch game mode</div>
+    <div class="pad-badge" id="winPadHint" hidden>🎮 Ⓐ play again · Ⓑ keep playing · Ⓨ switch game mode</div>
     </div>
   </div>
 </div>
@@ -771,10 +780,10 @@
   const BODY = 'Mayan, Georgia, serif';
   const DEFAULT_MOVIES = ['Monster House', 'Scary Movie', 'Shaun of the Dead', 'What We Do in the Shadows', 'Wallace & Gromit: The Curse of the Were-Rabbit', 'The Conjuring', 'Nope', 'Us'];
   // Party mode: up to 4 players, each with their own dropper, scoring the value of the pot each coin lands in
-  const MAX_PLAYERS = 4;
-  const PLAYER_COLORS = ['#ff4d4d', '#2ec5ff', '#7ee03b', '#ffcc33'];
-  const PARTY_POTS = [25, -5, 50, 10, 100, 10, 50, -5, 25];   // the -5 pots take money off you
-  const POT_COLORS = { '-5': '#ff3b3b', 10: '#7ee03b', 25: '#19d3e0', 50: '#ff2e88', 100: '#ffcc33' };
+  const MAX_PLAYERS = 8;
+  const PLAYER_COLORS = ['#ff4d4d', '#2ec5ff', '#7ee03b', '#ffcc33', '#ff5ec4', '#a678ff', '#ff9a2e', '#e8f0f4'];
+  const PARTY_POTS = [25000, -5000, 50000, 10000, 100000, 10000, 50000, -5000, 25000];   // the -5,000 pots take money off you
+  const POT_COLORS = { '-5000': '#ff3b3b', 10000: '#7ee03b', 25000: '#19d3e0', 50000: '#ff2e88', 100000: '#ffcc33' };
   const OBSTACLE_ROWS = [3, 8];            // peg rows replaced by lanes of sliding stone slabs
   const BOOST_TIME = 1, BOOST_COOLDOWN = 5, BOOST_MUL = 2.5;
   const MOVIE_BOOST_COOLDOWN = BOOST_COOLDOWN / 2;   // no one to ram in movie mode, so it recharges faster
@@ -827,6 +836,8 @@
   let winName = '', winLine = '', winBucket = -1, fountainX = 0;
   let countdownT = -1;                     // seconds since START GAME was pressed, or -1 when there's no countdown
   const COUNT_STEP = 0.9;                  // seconds each of 3, 2, 1, GO stays up
+  let sdT = -1;                            // seconds since a tie turned into sudden death, or -1
+  const SD_INTRO = 2.4;                    // SUDDEN DEATH holds this long before its own 3-2-1-GO
 
   // ---------- DOM ----------
   const $ = id => document.getElementById(id);
@@ -903,9 +914,26 @@
     if (music && !muted && !document.hidden && music.paused) music.play().catch(() => {});
   }
   // Fades toward the target each frame: silent when muted, ducked under the MEGA WIN fanfare
+  // Sudden death muffles it, as if heard through a wall: the <audio> element is routed through a low-pass filter.
+  // Under file:// the browser won't let Web Audio read the element (it would go silent), so there it just ducks lower.
+  let musicFilter = null;
+  const MUSIC_OPEN = 20000, MUSIC_MUFFLED = 350;   // filter cutoff in Hz
+  function routeMusic() {
+    if (!music || !actx || musicFilter || location.protocol === 'file:') return;
+    try {
+      musicFilter = actx.createBiquadFilter();
+      musicFilter.type = 'lowpass';
+      musicFilter.frequency.value = MUSIC_OPEN;
+      actx.createMediaElementSource(music).connect(musicFilter);
+      musicFilter.connect(actx.destination);   // not through master: the element's own volume already sets the level
+    } catch { musicFilter = null; }
+  }
   function updateMusic(dt) {
     if (!music) return;
-    const target = muted ? 0 : winner >= 0 && megaT < 3 ? MUSIC_VOL * 0.3 : crowdOn ? MUSIC_VOL * 0.6 : MUSIC_VOL;
+    const muffled = state === 'tiebreak';
+    if (musicFilter) musicFilter.frequency.setTargetAtTime(muffled ? MUSIC_MUFFLED : MUSIC_OPEN, actx.currentTime, 0.25);
+    const target = muted ? 0 : winner >= 0 && megaT < 3 ? MUSIC_VOL * 0.3 : muffled && !musicFilter ? MUSIC_VOL * 0.3
+      : crowdOn ? MUSIC_VOL * 0.6 : MUSIC_VOL;
     music.volume = Math.max(0, Math.min(1, music.volume + (target - music.volume) * Math.min(1, dt * 3)));
     if (muted && music.volume < 0.005 && !music.paused) music.pause();
   }
@@ -924,6 +952,7 @@
       loadCoins();
       loadCrowd();
       loadReward();
+      routeMusic();
     } catch { actx = null; }
   }
   function tone(freq, vol, dur, type = 'triangle', when = 0) {
@@ -1118,13 +1147,14 @@
   }
   // The win: a reward jingle layered with a jangle of keys, a big jackpot coin pour (all peak near full scale,
   // so set below 1), and the corner sculptures' fire breath
-  let rewardClip = null, keysClip = null, jackpotClip = null, fireClip = null;
+  let rewardClip = null, keysClip = null, jackpotClip = null, fireClip = null, bassClip = null;
   function loadReward() {
     if (rewardClip || !actx) return;
     rewardClip = loadClip('audio/656643__ienba__game-reward.wav');
     keysClip = loadClip('audio/614265__jocamarino__grab-keys.wav');
     jackpotClip = loadClip('audio/496772__robinhood76__08173-big-jackpot-coins.wav');
     fireClip = loadClip('audio/157616__bspiller5__fire-breath.wav');
+    bassClip = loadClip('audio/149837__pepe2__bass-drop_trim.wav');   // the first 4.5s of the original (the rest is silence)
   }
   function fanfare() {
     if (!actx || muted) return;
@@ -1236,7 +1266,7 @@
         const b = slotOf(p.x);
         p.counted = true; p.bucket = b;
         // In sudden death only the tied slots count; once there's a winner nothing does
-        if (state === 'done' || (state === 'tiebreak' && !tied.includes(b))) {
+        if (state === 'done' || (state === 'tiebreak' && mode !== 'party' && !tied.includes(b))) {
           p.dud = true;
           tone(140, 0.08, 0.15, 'sine');
           continue;
@@ -1250,7 +1280,7 @@
         }
         if (floaters.length < 40) floaters.push({
           x: (slotEdge(b) + slotEdge(b + 1)) / 2, y: BUCKET_TOP - 6, t: 0,
-          color: pl ? (PARTY_POTS[b] < 0 ? '#ff3b3b' : pl.color) : slotColor(b), text: pl ? (PARTY_POTS[b] < 0 ? '' : '+') + money(PARTY_POTS[b]) : '+1', big: pl && PARTY_POTS[b] >= 50,
+          color: pl ? (PARTY_POTS[b] < 0 ? '#ff3b3b' : pl.color) : slotColor(b), text: pl ? (PARTY_POTS[b] < 0 ? '' : '+') + money(PARTY_POTS[b]) : '+1', big: pl && PARTY_POTS[b] >= 50000,
         });
         landSound(b);
         rumble(0.15, 0.4, 60, pl ? pl.src : null);
@@ -1367,10 +1397,10 @@
     pucks = []; particles = []; rings = []; floaters = []; fountain = [];
     counts = Array(slotCount()).fill(0);
     bucketFx = counts.map(() => ({ glow: 0, bump: 0, fill: 0 }));
-    toDrop = 0; winner = -1; winBucket = -1; megaT = 99; fountainT = 0; countdownT = -1; dropperBoost = dropperCool = 0;
+    toDrop = 0; winner = -1; winBucket = -1; megaT = 99; fountainT = 0; countdownT = sdT = -1; dropperBoost = dropperCool = 0;
     againLock = 0;
     // Party players stay in the lobby for the next round; anyone new can still join
-    for (const p of players) { p.coins = 0; p.score = 0; p.holding = false; }
+    for (const p of players) { p.coins = 0; p.score = 0; p.holding = false; p.out = false; }
     stopCrowd(0.2);
     $('side').classList.remove('locked');
     hideBanner();
@@ -1390,7 +1420,7 @@
     if (mode !== 'party' || state !== 'setup') return;
     showBanner(players.length
       ? `${players.length} player${players.length > 1 ? 's' : ''} in · more can join · press START GAME when everyone's ready`
-      : `PARTY MODE · each player presses ${partyKey()} to join`);
+      : `PARTY MODE · each player presses ${padConnected ? 'Ⓐ, ' : ''}Space or W to join`);
   }
   function joinParty(src) {
     if (countdownT >= 0 || players.length >= MAX_PLAYERS || players.some(p => p.src === src)) return;
@@ -1415,7 +1445,7 @@
     const p = players.find(q => q.src === src);
     if (!p) { if (state === 'setup' && canJoin) joinParty(src); return; }
     if (state === 'setup' && countdownT >= 0) { p.holding = true; p.holdTimer = DROP_INTERVAL; return; }   // fires on GO
-    if (state !== 'running') return;
+    if (state !== 'running' && !(state === 'tiebreak' && !p.out)) return;
     p.holding = true;
     p.holdTimer = DROP_INTERVAL;
     if (src === 'kb') $('dropBtn').classList.add('held');
@@ -1427,13 +1457,14 @@
     if (src === 'kb') $('dropBtn').classList.remove('held');
   }
   function partyRelease(p) {
-    // Out of coins: the idol still dips at the press, but nothing comes out
-    if (state !== 'running' || p.coins <= 0) { p.kick = 1; return; }
+    // Out of coins (or sudden death hasn't reached GO): the idol still dips at the press, but nothing comes out
+    const free = sdLive() && !p.out;
+    if (!free && (state !== 'running' || p.coins <= 0)) { p.kick = 1; return; }
     // Fired from the mouth along the aim (0 = straight down), carrying the dropper's own sideways speed
     const [mx, my] = shooterMouth(p.x);
     const shot = shotSpeed();
     spawnPuck(mx, Math.sin(p.aim) * shot + p.v * PARTY_INHERIT, p.slot, my, Math.cos(p.aim) * shot);
-    p.coins--;
+    if (!free) p.coins--;
     p.kick = 1;
     const total = players.length * partyCoins;
     if (partyCoinsLeft() <= Math.max(2, Math.round(total * 0.15))) startCrowd();
@@ -1443,7 +1474,7 @@
   }
   function partyBoost(src) {
     const p = players.find(q => q.src === src);
-    if (!p || state !== 'running' || p.cool > 0) return;
+    if (!p || p.out || (state !== 'running' && state !== 'tiebreak') || p.cool > 0) return;
     p.boost = BOOST_TIME;
     p.cool = BOOST_COOLDOWN;
     boostWhoosh(src);
@@ -1477,6 +1508,33 @@
     else { [523.25, 659.25, 783.99, 1046.5].forEach(f => tone(f, 0.12, 0.6, 'triangle')); tone(1568, 0.06, 0.5, 'sine', 0.05); }
     rumble(n > 0 ? 0.3 : 0.9, n > 0 ? 0.3 : 0.9, n > 0 ? 120 : 350);
   }
+  // A tie: the screen goes dark around the board, SUDDEN DEATH slams in on a bass drop, then 3-2-1-GO before
+  // the free coins can fall. Movie pick: first coin into one of the tied slots wins. Party: only the tied
+  // players stay on the rail, with endless coins, and whoever first pulls ahead wins.
+  function startSuddenDeath() {
+    sdT = 0;
+    hideBanner();
+    if (actx && !muted) playClip(bassClip, 0.5);
+    rumble(1, 1, 900);
+    rayBoost = 2.5;
+  }
+  function tickSuddenDeath(dt) {
+    $('spotlight').classList.toggle('on', state === 'tiebreak');
+    if (state !== 'tiebreak' || sdT < 0 || sdT >= SD_INTRO + 4 * COUNT_STEP) return;
+    const step = t => t < SD_INTRO ? -1 : Math.floor((t - SD_INTRO) / COUNT_STEP);
+    const before = step(sdT);
+    sdT += dt;
+    const now = step(sdT);
+    if (now !== before && now <= 3) {
+      countBeep(3 - now);
+      if (now === 3) {   // GO
+        showBanner(mode === 'party'
+          ? `SUDDEN DEATH: ${tied.map(playerName).join(' vs ')} · first to pull ahead wins`
+          : `SUDDEN DEATH: first coin into ${tied.map(i => movies[i]).join(' or ')} wins`);
+        updateUI();
+      }
+    }
+  }
   function tickCountdown(dt) {
     if (countdownT < 0) return;
     const before = Math.floor(countdownT / COUNT_STEP);
@@ -1492,6 +1550,7 @@
     tickCountdown(dt);
     const speed = partyDropperSpeed();
     for (const p of players) {
+      if (p.out) continue;
       p.boost = Math.max(0, p.boost - dt);
       p.cool = Math.max(0, p.cool - dt);
       p.v = p.dir * speed * (p.boost > 0 ? BOOST_MUL : 1);
@@ -1505,7 +1564,8 @@
       p.hitCool = Math.max(0, p.hitCool - dt);
       // Aim follows the stick almost directly; a touch of smoothing just hides stick jitter.
       // While stunned from a ram, the aim is thrown about instead.
-      if (p.src === 'kb') p.aimTarget = (keyAim.right - keyAim.left) * MAX_AIM * 0.85;
+      const ka = keyAims[p.src];
+      if (ka) p.aimTarget = (ka.right - ka.left) * MAX_AIM * 0.85;
       const target = p.stun > 0 ? p.aimTarget + Math.sin(clock * 23 + p.slot) * 1.1 * Math.min(1, p.stun * 2) : p.aimTarget;
       p.aim = Math.max(-MAX_AIM, Math.min(MAX_AIM, p.aim + (target - p.aim) * Math.min(1, dt * 25)));
       if (p.holding) {
@@ -1515,17 +1575,21 @@
     }
     ramDroppers();
     const kb = players.find(p => p.src === 'kb');
-    $('boostBtn').classList.toggle('off', !kb || state !== 'running' || kb.cool > 0);
+    $('boostBtn').classList.toggle('off', !kb || kb.out || (state !== 'running' && state !== 'tiebreak') || kb.cool > 0);
     if (state === 'running' && partyCoinsLeft() === 0 && activePucks() === 0) declarePartyWinner();
+    else if (state === 'tiebreak') {
+      const ins = players.filter(p => !p.out), best = Math.max(...ins.map(p => p.score));
+      if (ins.filter(p => p.score === best).length === 1) declarePartyWinner();
+    }
   }
   // A boosting dropper that reaches another rams it: the victim is shoved away, sent the other way and
   // left wobbling with its aim scrambled. Two boosters meeting both get knocked back.
   function ramDroppers() {
     const reach = IDOL_H * PARTY_IDOL * (idolImg && idolImg.naturalWidth ? idolImg.naturalWidth / idolImg.naturalHeight : 1) * RAM_REACH;
     for (const a of players) {
-      if (a.boost <= 0) continue;
+      if (a.boost <= 0 || a.out) continue;
       for (const b of players) {
-        if (b === a || b.hitCool > 0 || Math.abs(b.x - a.x) > reach) continue;
+        if (b === a || b.out || b.hitCool > 0 || Math.abs(b.x - a.x) > reach) continue;
         // Only rams from behind or head-on: the booster has to be moving towards the other dropper
         if (Math.sign(b.x - a.x || 1) !== Math.sign(a.v)) continue;
         const away = Math.sign(b.x - a.x) || Math.sign(a.v);
@@ -1548,6 +1612,14 @@
   function declarePartyWinner() {
     const best = Math.max(...players.map(p => p.score));
     const champs = players.filter(p => p.score === best);
+    if (champs.length > 1) {
+      state = 'tiebreak'; tied = champs.map(p => p.slot);
+      for (const p of players) { p.out = !tied.includes(p.slot); p.holding = false; }
+      startSuddenDeath();
+      updateLeaderboard();
+      updateUI();
+      return;
+    }
     winner = champs[0].slot;
     winBucket = -1;
     winName = champs.map(p => playerName(p.slot)).join(' & ');
@@ -1578,7 +1650,8 @@
     dropperKick *= Math.pow(0.001, dt);
     $('boostBtn').classList.toggle('off', (state !== 'running' && state !== 'tiebreak') || dropperCool > 0);
   }
-  const canDrop = () => (state === 'running' && toDrop > 0) || state === 'tiebreak';
+  const sdLive = () => state === 'tiebreak' && sdT >= SD_INTRO + 3 * COUNT_STEP;   // sudden death has reached GO
+  const canDrop = () => (state === 'running' && toDrop > 0) || sdLive();
   function releasePuck() {
     // Out of coins: the idol still dips at the press, but nothing comes out (its eyes stay grey)
     if (!canDrop()) { dropperKick = 1; return; }
@@ -1743,7 +1816,7 @@
   function refreshAgain() {
     const locked = !againReady(), n = locked && againLock !== Infinity ? ` (${Math.ceil(againLock)})` : '';
     const other = mode === 'party' ? '🎬 Movie Pick' : '🎮 Party Mode';
-    for (const [id, label] of [['againBtn', 'Ⓐ Play Again'], ['moreBtn', 'Ⓑ Insert More Coins'], ['switchBtn', `Ⓨ Switch to ${other}`]]) {
+    for (const [id, label] of [['againBtn', 'Ⓐ Play Again'], ['moreBtn', 'Ⓑ Keep playing!!!'], ['switchBtn', `Ⓨ Switch to ${other}`]]) {
       const btn = $(id);
       btn.disabled = locked;
       btn.classList.toggle('waiting', locked);
@@ -1751,14 +1824,14 @@
     }
   }
 
-  // Insert More Coins: carry on the same round. Counts and scores are kept, a fresh batch of coins is
+  // Keep playing!!! (insertMoreCoins): carry on the same round. Counts and scores are kept, a fresh batch of coins is
   // added (a round's worth, or each party player's allowance), and the winner is decided again when they land.
   function insertMoreCoins() {
     if (state !== 'done' || !againReady()) return;
     initAudio();
     confetti = []; fountain = []; floaters = [];
     winner = -1; winBucket = -1; megaT = 99; fountainT = 0; againLock = 0;
-    if (mode === 'party') for (const p of players) { p.coins += partyCoins; p.holding = false; }
+    if (mode === 'party') for (const p of players) { p.coins += partyCoins; p.holding = false; p.out = false; }
     else toDrop += puckTotal;
     state = 'running';
     $('overlay').classList.remove('show');
@@ -1807,13 +1880,14 @@
       }
     }
 
+    tickSuddenDeath(dt);
     if (mode === 'party') { /* the round ends in updateParty */ }
     else if (state === 'running' && toDrop === 0 && active === 0) {
       const l = leaders();
       if (l.length === 1) declareWinner(l[0]);
       else {
         state = 'tiebreak'; tied = l;
-        showBanner(`TIE! Keep dropping: first coin into ${l.map(i => movies[i]).join(' or ')} wins`);
+        startSuddenDeath();
       }
       updateUI();
     } else if (state === 'tiebreak' && leaders().length === 1) {
@@ -2101,7 +2175,7 @@
       ctx.fillStyle = 'rgba(255,230,160,0.8)';
       ctx.font = `14px ${HEADING}`;
       ctx.fillText(mode === 'party'
-        ? `JOIN: ${padConnected ? 'Ⓐ ON EACH CONTROLLER, ' : ''}SPACE FOR KEYBOARD  ·  FIRE: Ⓐ / SPACE  ·  AIM: STICK / ← →  ·  BOOST: Ⓧ / SHIFT`
+        ? `JOIN: ${padConnected ? 'Ⓐ ON EACH CONTROLLER, ' : ''}SPACE OR W FOR KEYBOARD  ·  FIRE: Ⓐ / SPACE  ·  AIM: STICK / ← →  ·  BOOST: Ⓧ / SHIFT`
         : `${padConnected ? 'PRESS DROP, SPACE OR Ⓐ' : 'PRESS DROP OR SPACE'}  ·  HOLD TO KEEP DROPPING  ·  BOOST: ${padConnected ? 'Ⓧ / ' : ''}SHIFT`, W / 2, TOP_H - 16);
     }
     drawDropper();
@@ -2172,7 +2246,11 @@
     ctx = textCtx;
     drawMegaWin();
     ctx = boardCtx;
-    drawCountdown();
+    drawCountdown(countdownT);
+    if (state === 'tiebreak' && sdT >= SD_INTRO) drawCountdown(sdT < SD_INTRO + 4 * COUNT_STEP ? sdT - SD_INTRO : -1);
+    ctx = textCtx;
+    drawSuddenDeath();
+    ctx = boardCtx;
   }
 
   function drawRays() {
@@ -2222,7 +2300,8 @@
     drawRail();
     if (mode === 'party') {
       for (const p of players) {
-        drawIdol({ x: p.x, v: p.v, kick: p.kick, live: state === 'setup' || (state === 'running' && p.coins > 0),
+        if (p.out) continue;
+        drawIdol({ x: p.x, v: p.v, kick: p.kick, live: state === 'setup' || (state === 'running' && p.coins > 0) || sdLive(),
                    color: p.color, label: playerName(p.slot), boost: p.boost, s: PARTY_IDOL, aim: p.aim, stun: p.stun });
       }
     } else {
@@ -2439,7 +2518,7 @@
 
       // Counter and label go on the text layer; slots out of a tie-break are dimmed there to match
       ctx = textCtx;
-      if (state === 'tiebreak' && !tied.includes(i)) ctx.globalAlpha = 0.35;
+      if (state === 'tiebreak' && !party && !tied.includes(i)) ctx.globalAlpha = 0.35;
       // Counter: a carved stone tablet with the count in Tower Gold, glowing in the slot's colour
       const mw = Math.min(sw - 8, 84 + bw * 0.18), mh = Math.min(62, 42 + bw * 0.06), my = BUCKET_TOP + 4;
       drawStoneFrame(cx - mw / 2, my, mw, mh, Math.min(10, mh * 0.2));
@@ -2459,9 +2538,10 @@
       ctx.fillStyle = '#ffffff';
       ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 5;
       if (party) {
-        // The pot's value in Tower Gold, glowing in its tier colour, shrunk if needed so "$100" fits the pot
-        const v = PARTY_POTS[i], text = money(v);
-        let fs = Math.min(56, bw * 0.3) * (v === 100 ? 1.12 : 1);
+        // The pot's value in Tower Gold (in thousands, "$100K", so it fits), glowing in its tier colour,
+        // shrunk if needed so "$100K" fits the pot
+        const v = PARTY_POTS[i], text = (v < 0 ? '-$' : '$') + Math.abs(v) / 1000 + 'K';
+        let fs = Math.min(56, bw * 0.3) * (v === 100000 ? 1.12 : 1);
         fs *= Math.min(1, (bw - 18) / goldMeasure(goldFonts.tower, text, fs)) * (1 + Math.sin(clock * 3 + i) * 0.03);
         ctx.shadowColor = color; ctx.shadowBlur = 22;
         goldText(goldFonts.tower, text, cx, (labelTop + labelBottom) / 2, fs);
@@ -2485,7 +2565,7 @@
       ctx.globalAlpha = 1;
       ctx = boardCtx;
 
-      if (state === 'tiebreak' && !tied.includes(i)) {
+      if (state === 'tiebreak' && !party && !tied.includes(i)) {
         ctx.fillStyle = 'rgba(6,2,12,0.65)';
         ctx.fillRect(x0, BUCKET_TOP - 30, sw, FLOOR - BUCKET_TOP + 30);
       }
@@ -2652,9 +2732,9 @@
   }
 
   // 3 · 2 · 1 · GO! after START GAME: each pops in over a dimmed board with a gold burst behind it
-  function drawCountdown() {
-    if (countdownT < 0) return;
-    const i = Math.min(3, Math.floor(countdownT / COUNT_STEP)), u = (countdownT % COUNT_STEP) / COUNT_STEP;
+  function drawCountdown(t) {
+    if (t < 0) return;
+    const i = Math.min(3, Math.floor(t / COUNT_STEP)), u = (t % COUNT_STEP) / COUNT_STEP;
     const go = i === 3, cy = (TOP_H + BUCKET_TOP) / 2;
     ctx.fillStyle = `rgba(4,8,6,${go ? 0.35 * (1 - u) : 0.35})`;
     ctx.fillRect(0, TOP_H, W, BUCKET_TOP - TOP_H);
@@ -2674,6 +2754,30 @@
     ctx.globalCompositeOperation = 'source-over';
     ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 24; ctx.shadowOffsetY = 8;
     if (size > 1) goldText(go ? goldFonts.tower : goldFonts.aztec, go ? 'GO!' : String(3 - i), W / 2, cy, size);
+    ctx.restore();
+  }
+
+  // SUDDEN DEATH slams down from huge onto the board, shudders in blood red, then fades for the countdown
+  function drawSuddenDeath() {
+    if (state !== 'tiebreak' || sdT < 0 || sdT >= SD_INTRO) return;
+    const t = sdT, cy = (TOP_H + BUCKET_TOP) / 2;
+    const slam = Math.min(1, t / 0.28), s = 1 + 2.2 * Math.pow(1 - slam, 3);
+    const alpha = Math.min(1, t * 6) * (t > SD_INTRO - 0.4 ? (SD_INTRO - t) / 0.4 : 1);
+    const shake = slam < 1 ? 0 : 7 * Math.exp(-(t - 0.28) * 4);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    // Red flash across the board on impact
+    if (t < 0.7) {
+      ctx.fillStyle = `rgba(200,0,30,${0.45 * (1 - t / 0.7) * slam})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.translate(W / 2 + (Math.random() - 0.5) * 2 * shake, cy + (Math.random() - 0.5) * 2 * shake);
+    const pulse = s * (1 + Math.sin(t * 9) * 0.015);
+    ctx.scale(pulse, pulse);
+    const size = Math.min(150, 150 * (W - 120) / Math.max(1, goldMeasure(goldFonts.aztec, 'SUDDEN', 150)));
+    ctx.shadowColor = '#ff1030'; ctx.shadowBlur = 50;
+    goldText(goldFonts.aztec, 'SUDDEN', 0, -size * 0.55, size);
+    goldText(goldFonts.aztec, 'DEATH', 0, size * 0.55, size);
     ctx.restore();
   }
 
@@ -2966,7 +3070,7 @@
   function buildLeaderboard() {
     const el = $('leaderboard');
     el.innerHTML = '';
-    // Party mode always shows the four player seats, filled as people join
+    // Party mode always shows every player seat, filled as people join
     const entries = mode === 'party'
       ? PLAYER_COLORS.map((color, i) => ({ name: playerName(i), color }))
       : movies.map((m, i) => ({ name: m, color: PALETTE[i % PALETTE.length] }));
@@ -2985,17 +3089,19 @@
   }
   function updatePartyBoard() {
     const score = i => players[i] ? players[i].score : -1;
-    const order = [0, 1, 2, 3].sort((a, b) => score(b) - score(a) || a - b);
+    const order = PLAYER_COLORS.map((_, i) => i).sort((a, b) => score(b) - score(a) || a - b);
     const top = Math.max(0, ...players.map(p => p.score));
     const leadersN = players.filter(p => p.score === top).length;
     order.forEach((slot, rank) => {
       const row = lbRows[slot], p = players[slot];
       if (!row) return;
       row.style.transform = `translateY(${rank * 38}px)`;
-      row.style.opacity = p ? 1 : 0.45;
+      row.style.opacity = p && !(state === 'tiebreak' && p.out) ? 1 : 0.45;
       row.querySelector('.lb-rank').textContent = p ? rank + 1 : '';
       row.querySelector('.lb-name').textContent = !p ? `${playerName(slot)} · press ${partyKey()} to join`
-        : state === 'running' ? `${playerName(slot)} · ${p.coins} left` : `${playerName(slot)}${p.src === 'kb' ? ' (keyboard)' : ''}`;
+        : state === 'running' ? `${playerName(slot)} · ${p.coins} left`
+        : state === 'tiebreak' ? `${playerName(slot)} · ${p.out ? 'out' : 'sudden death'}`
+        : `${playerName(slot)}${p.src === 'kb' ? ' (keyboard)' : p.src === 'kb2' ? ' (W A S D)' : ''}`;
       row.querySelector('.lb-count').textContent = p ? money(p.score) : '';
       row.querySelector('.lb-bar').style.width = p && top ? Math.max(0, p.score / top * 100) + '%' : '0%';
       row.classList.toggle('lead', !!p && top > 0 && p.score === top && leadersN === 1);
@@ -3023,6 +3129,7 @@
     const s = $('status');
     if (mode === 'party') {
       s.textContent = state === 'running' ? `${partyCoinsLeft()} coins to drop · ${activePucks()} in play`
+        : state === 'tiebreak' ? 'Sudden death: first to pull ahead wins!'
         : state === 'done' ? `Winner: ${winName}`
         : players.length ? `${players.length}/${MAX_PLAYERS} players · more can join` : `Party mode: press ${partyKey()} to join`;
       return;
@@ -3052,6 +3159,7 @@
     $('muteBtn').textContent = muted ? '🔇 Sound off' : '🔊 Sound on';
     $('modeMovies').classList.toggle('on', mode === 'movies');
     $('modeParty').classList.toggle('on', mode === 'party');
+    $('modeSwitchBtn').textContent = mode === 'party' ? '🎬 Movie pick' : '🎮 Party';
     const s = $('status');
     if (state === 'setup') s.textContent = 'Watch the idol and press DROP (or Space)';
     else if (state === 'done') s.textContent = `Winner: ${winName}`;
@@ -3063,10 +3171,11 @@
     const [label, sub] =
       state === 'setup' ? (kb ? ['READY', 'waiting for players'] : ['PRESS SPACE', 'to join on the keyboard']) :
       state === 'running' ? (kb ? ['DROP', `${kb.coins} coins left`] : ['—', 'not playing']) :
+      state === 'tiebreak' ? (kb && !kb.out ? ['DROP', 'sudden death!'] : ['—', kb ? 'knocked out' : 'not playing']) :
       ['NEW ROUND', 'back to the lobby'];
     btn.querySelector('b').textContent = label;
     btn.querySelector('small').textContent = sub;
-    btn.classList.toggle('off', state === 'running' && (!kb || kb.coins === 0));
+    btn.classList.toggle('off', (state === 'running' && (!kb || kb.coins === 0)) || (state === 'tiebreak' && (!kb || kb.out)));
     $('startBtn').classList.toggle('gone', state !== 'setup' || countdownT >= 0);
     $('startBtn').classList.toggle('off', !players.length);
     const credits = pileCount();
@@ -3075,6 +3184,7 @@
     $('muteBtn').textContent = muted ? '🔇 Sound off' : '🔊 Sound on';
     $('modeMovies').classList.toggle('on', mode === 'movies');
     $('modeParty').classList.toggle('on', mode === 'party');
+    $('modeSwitchBtn').textContent = mode === 'party' ? '🎬 Movie pick' : '🎮 Party';
     updateStatus();
   }
 
@@ -3155,8 +3265,11 @@
     showSpeed();
     store.set('dropperSpeed', dropperSpeed);
   };
-  function setMode(m) {
-    if (m === mode || state === 'running' || state === 'tiebreak') return;
+  // force: switch even mid-round, throwing that round away (the side-panel switch)
+  function setMode(m, force = false) {
+    if (m === mode || (!force && (state === 'running' || state === 'tiebreak'))) return;
+    endHold();
+    confetti = [];
     mode = m;
     store.set('mode', mode);
     players = [];
@@ -3166,6 +3279,7 @@
   }
   $('modeMovies').onclick = () => setMode('movies');
   $('modeParty').onclick = () => setMode('party');
+  $('modeSwitchBtn').onclick = () => { initAudio(); setMode(mode === 'party' ? 'movies' : 'party', true); };
   // In party mode Reset also empties the lobby, so everyone joins afresh
   $('resetBtn').onclick = () => { endHold(); if (mode === 'party') players = []; resetRound(); buildLeaderboard(); confetti = []; };
   $('muteBtn').onclick = () => { muted = !muted; store.set('muted', muted); if (muted) stopCrowd(0.2); initAudio(); updateUI(); };
@@ -3213,11 +3327,19 @@
     if (!e.repeat) dropDown();
   });
   window.addEventListener('keyup', e => { if (e.code === 'Space') dropUp(); });
-  // Keyboard player's aim: hold ← / → to angle the shot
-  const keyAim = { left: 0, right: 0 };
-  window.addEventListener('keydown', e => { if (e.code === 'ArrowLeft') keyAim.left = 1; if (e.code === 'ArrowRight') keyAim.right = 1; });
-  window.addEventListener('keyup', e => { if (e.code === 'ArrowLeft') keyAim.left = 0; if (e.code === 'ArrowRight') keyAim.right = 0; });
-  window.addEventListener('blur', () => { endHold(); partyUp('kb'); });
+  // Keyboard players' aim: hold ← / → (or A / D for the second seat) to angle the shot
+  const keyAims = { kb: { left: 0, right: 0 }, kb2: { left: 0, right: 0 } };
+  const AIM_KEYS = { ArrowLeft: ['kb', 'left'], ArrowRight: ['kb', 'right'], KeyA: ['kb2', 'left'], KeyD: ['kb2', 'right'] };
+  window.addEventListener('keydown', e => { const k = AIM_KEYS[e.code]; if (k) keyAims[k[0]][k[1]] = 1; });
+  window.addEventListener('keyup', e => { const k = AIM_KEYS[e.code]; if (k) keyAims[k[0]][k[1]] = 0; });
+  // Second keyboard seat, party mode only: W fires (and joins), S boosts
+  window.addEventListener('keydown', e => {
+    if (mode !== 'party' || e.repeat || document.activeElement.tagName === 'INPUT' || settingsOpen()) return;
+    if (e.code === 'KeyW') partyDown('kb2');
+    if (e.code === 'KeyS') boost('kb2');
+  });
+  window.addEventListener('keyup', e => { if (e.code === 'KeyW' && mode === 'party') partyUp('kb2'); });
+  window.addEventListener('blur', () => { endHold(); partyUp('kb'); partyUp('kb2'); });
   // Pause the music while the tab is hidden (the frame loop that fades it stops too)
   document.addEventListener('visibilitychange', () => {
     if (!music) return;
